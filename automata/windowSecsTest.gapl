@@ -1,0 +1,14 @@
+subscribe t to Timer;
+iterator it;
+window w;
+int i;
+initialization {
+  w = Window(int, SECS, 5);
+  i = 0;
+  append(w, i, tstampNow());
+}
+behavior {
+  i += 1;
+  append(w, i, tstampNow());
+  send(w);
+}
