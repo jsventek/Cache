@@ -1,9 +1,7 @@
 subscribe t to Timer;
-event<Timer> x, y, z;
-window moteWin;
+event<Timer> x;
 identifier mote;
 iterator it;
-sequence averages;
 map windows;
 window w;
 int i;
