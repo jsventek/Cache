@@ -88,7 +88,7 @@ char errbuf[1024];
 }
 %token  <strv>  VAR FIELD STRING FUNCTION PROCEDURE PARAMTYPE /* tokens that malloc */
 %token  <intv>  SUBSCRIBE TO WHILE IF ELSE INITIALIZATION BEHAVIOR MAP PRINT
-%token  <intv>  BOOLEAN INTEGER ROWS SECS WINDOW DESTROY
+%token  <intv>  BOOLEAN INTEGER ROWS SECS WINDOW DESTROY NULLVAL
 %token  <intv>  BOOLDCL INTDCL REALDCL STRINGDCL TSTAMPDCL IDENTDCL SEQDCL EVENTDCL
 %token  <intv>  ITERDCL MAPDCL WINDOWDCL
 %token  <intv>  ASSOCIATE WITH PLUSEQ MINUSEQ
@@ -239,7 +239,7 @@ declaration:    variabletype variablelist ';' {
                     ll_destroy(vblnames, NULL); vblnames = NULL;
                 }
                 ;
-basictype:    INTDCL    { $$ = dINTEGER; }
+basictype:        INTDCL    { $$ = dINTEGER; }
                 | BOOLDCL   { $$ = dBOOLEAN; }
                 | REALDCL   { $$ = dDOUBLE; }
                 | STRINGDCL { $$ = dSTRING; }
@@ -438,7 +438,12 @@ end:      /* nothing */ {
                     code(TRUE, STOP, NULL, "STOP", lineno); $$ = progp;
                   }
                 ;
-expr:           INTEGER {
+expr:           NULLVAL {
+                    code(TRUE, constpush, NULL, "constpush", lineno);
+                    initDSE(&dse, dNULL, 0);
+                    $$ = code(FALSE, NULL, &dse, "NULL", lineno);
+                  }
+                | INTEGER {
                     code(TRUE, constpush, NULL, "constpush", lineno);
                     initDSE(&dse, dINTEGER, 0);
                     dse.value.int_v = $1;
@@ -661,6 +666,7 @@ static struct keyval keywords[] = {
     {"window", WINDOWDCL},
     {"identifier", IDENTDCL},
     {"event", EVENTDCL},
+    {"NULL", NULLVAL},
     {"if", IF},
     {"else", ELSE},
     {"while", WHILE},

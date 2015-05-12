@@ -780,7 +780,7 @@ void extract(MachineContext *mc) {
 
 static int simple_type(DataStackEntry *d) {
     int t = d->type;
-    return (t == dBOOLEAN || t == dINTEGER || t == dDOUBLE || t == dTSTAMP || t == dEVENT);
+    return (t == dNULL || t == dBOOLEAN || t == dINTEGER || t == dDOUBLE || t == dTSTAMP || t == dEVENT);
 }
 
 void assign(MachineContext *mc) {
@@ -798,13 +798,30 @@ void assign(MachineContext *mc) {
     t = d2.type;
     index = (long)d1.value.int_v;
     (void) al_get(mc->variables, index, (void **)&d);
-    if (t != d->type)
+    if ((t != d->type) & (t != dNULL)) { /*Only allow NULL type inequality */
         execerror(mc->pc->lineno,
                   "lhs and rhs of assignment of different types",
                   varName(mc, index));
-    if (t == dEVENT){ /* Need to add/remove new/old references*/
+    }
+    if (t == dEVENT) { /* Need to add/remove new/old references*/
         ev_release(d->value.ev_v);
         ev_reference(d2.value.ev_v);
+    }
+    else if (t == dNULL) {
+        initDSE(&d2, d->type, d->flags);
+        switch(d2.type) {
+            case dBOOLEAN:  d2.value.bool_v = 0; break;
+            case dINTEGER:  d2.value.int_v = 0; break;
+            case dDOUBLE:   d2.value.dbl_v = 0; break;
+            case dTSTAMP:   d2.value.tstamp_v = 0; break;
+            case dSTRING:   d2.value.str_v = NULL; break;
+            case dMAP:      d2.value.map_v = NULL; break;
+            case dIDENT:    d2.value.str_v = NULL; break;
+            case dWINDOW:   d2.value.win_v = NULL; break;
+            case dITERATOR: d2.value.iter_v = NULL; break;
+            case dSEQUENCE: d2.value.seq_v = NULL; break;
+            case dEVENT:    d2.value.ev_v = NULL; break;
+        }
     }
     if (d2.flags & DUPLICATE) {
         d2.value.str_v = strdup(d2.value.str_v);
@@ -891,7 +908,24 @@ static int compare(int lineno, DataStackEntry *d1, DataStackEntry *d2) {
             execerror(lineno, "attempting to compare structured datatypes", NULL);
             break;
         }
-    } else
+    } 
+    else if (t2 == dNULL) {/* NULL comparison against non-NULL type*/
+        switch(d1->type) {
+            case dBOOLEAN:     (d1->value.bool_v == 0 ? a = 0 : 1); break;
+            case dINTEGER:      (d1->value.int_v == 0 ? a = 0 : 1); break;
+            case dDOUBLE:       (d1->value.dbl_v == 0 ? a = 0 : 1); break;
+            case dTSTAMP:    (d1->value.tstamp_v == 0 ? a = 0 : 1); break;
+            case dSTRING:    (d1->value.str_v == NULL ? a = 0 : 1); break;
+            case dMAP:       (d1->value.map_v == NULL ? a = 0 : 1); break;
+            case dIDENT:     (d1->value.str_v == NULL ? a = 0 : 1); break;
+            case dWINDOW:    (d1->value.win_v == NULL ? a = 0 : 1); break;
+            case dITERATOR: (d1->value.iter_v == NULL ? a = 0 : 1); break;
+            case dSEQUENCE:  (d1->value.seq_v == NULL ? a = 0 : 1); break;
+            case dEVENT:      (d1->value.ev_v == NULL ? a = 0 : 1); break;
+            default: execerror(lineno, "attempting to compare unknown datatype to NULL", NULL);break;
+        }
+    }
+    else
         execerror(lineno, "attempting to compare different data types", NULL);
     return a;
 }
