@@ -1,4 +1,0 @@
-subscribe t to a;
-behavior {
-  send(t);
-}
