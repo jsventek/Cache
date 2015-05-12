@@ -5,7 +5,7 @@ CFLAGS=-W -Wall
 OBJECTS=agram.o automaton.o code.o topic.o scan.o gram.o event.o pubsub.o stack.o dsemem.o typetable.o sqlstmts.o nodecrawler.o mb.o rtab.o parser.o table.o indextable.o hwdb.o
 PROGRAMS=cache cacheclient registercallback striplf
 LIBS=libADTs.a libsrpc.a
-ALL_LIBS=$(LIBS) -lpthread -lm
+ALL_LIBS=$(LIBS) -pthread -lm
 
 all: $(LIBS) $(PROGRAMS)
 
@@ -24,7 +24,7 @@ srpc/libsrpc.a:
 clean:
 	(cd adts; make clean)
 	(cd srpc; make clean)
-	rm -f *.o agram.c gram.h gram.c $(LIBS) $(PROGRAMS) *~
+	rm -f *.o scan.c agram.c gram.h gram.c $(LIBS) $(PROGRAMS) *~
 
 striplf: striplf.o
 	gcc -o striplf $^

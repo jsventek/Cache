@@ -36,7 +36,7 @@ endif
 OBJECTS = crecord.o ctable.o endpoint.o srpc.o stable.o tslist.o
 PROGRAMS = mthclient$(EXT) callbackserver$(EXT) callbackclient$(EXT) echoserver$(EXT) echoclient$(EXT) sinkclient$(EXT) sgenclient$(EXT) sinktest$(EXT) conntest$(EXT)
 
-LIBS = -lpthread
+LIBS = -pthread
 CFLAGS=$(CFL_COMMON) $(OPT)
 LDFLAGS = $(LFL_COMMON)
 
