@@ -593,7 +593,9 @@ int rpc_init(unsigned short port) {
     } else
         strcpy(my_name, "127.0.0.1");
     /* temp fix against 127.0.1.1 */
-    strcpy(my_name, "127.0.0.1");
+    if (strcmp(my_name, "127.0.1.1") == 0) {
+        strcpy(my_name, "127.0.0.1");
+    }
     return common_init(port);
 }
 
