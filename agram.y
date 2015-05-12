@@ -672,10 +672,10 @@ top:
     while ((c = get_ch(&ap)) == ' ' || c == '\t' || c == '\n')
         if (c == '\n')
             lineno++;
-    if (c == '#') {     /* comment to end of line */
-        while ((c = get_ch(&ap)) != '\n' && c != EOF)
-            ;     /* consume rest of line */
-        if (c == '\n') {
+    if (c == '#') {     /* comment to end of line or next # */
+        while ((c = get_ch(&ap)) != '\n' && c != '#' && c != EOF)
+          ; /* consume rest of line */
+        if (c == '\n' || c == '#') {
             lineno++;
             goto top;
         }
