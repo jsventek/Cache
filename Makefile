@@ -1,6 +1,6 @@
 CC=gcc
 LEX=flex
-CFLAGS=-W -Wall
+CFLAGS=-W -Wall -g
 #CFLAGS=-W -Wall -DDEBUG -g
 OBJECTS=agram.o automaton.o code.o topic.o scan.o gram.o event.o pubsub.o stack.o dsemem.o typetable.o sqlstmts.o nodecrawler.o mb.o rtab.o parser.o table.o indextable.o hwdb.o
 PROGRAMS=cache cacheclient registercallback striplf
@@ -24,7 +24,7 @@ srpc/libsrpc.a:
 clean:
 	(cd adts; make clean)
 	(cd srpc; make clean)
-	rm -f *.o scan.c agram.c gram.h gram.c $(LIBS) $(PROGRAMS) *~
+	rm -f *.o agram.c gram.h gram.c $(LIBS) $(PROGRAMS) *~
 
 striplf: striplf.o
 	gcc -o striplf $^
@@ -72,3 +72,8 @@ timestamp.o: timestamp.c timestamp.h
 ptable.o: ptable.c ptable.h tshashmap.h dataStackEntry.h hwdb.h table.h nodecrawler.h topic.h tuple.h typetable.h tsiterator.h hashmap.h linkedlist.h rtab.h pubsub.h srpc.h automaton.h sqlstmts.h node.h iterator.h config.h endpoint.h event.h timestamp.h
 cacheclient.o: cacheclient.c config.h util.h rtab.h srpc.h logdefs.h endpoint.h
 registercallback.o: registercallback.c config.h util.h rtab.h srpc.h logdefs.h endpoint.h
+
+MINS=10
+PORT=1234
+reg_automaton: registercallback.o striplf.o
+	./registercallback -p $(PORT) -t $(MINS) -a "$(shell ./striplf automata/$(A))"
