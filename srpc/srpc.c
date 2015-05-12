@@ -68,7 +68,7 @@
 #define SEQNO 13
 #define SACK 14
 #define CMD_LOW CONNECT
-#define CMD_HIGH SACK		/* change this if commands added */
+#define CMD_HIGH SACK       /* change this if commands added */
 
 #define UNUSED __attribute__ ((unused))
 
@@ -79,36 +79,36 @@ static const char *cmdnames[] = {"", "CONNECT", "CACK", "QUERY", "QACK",
                                 };
 
 typedef struct ph {
-    uint32_t subport;	/* 3rd piece of identifier triple */
-    uint32_t seqno;	/* sequence number */
-    uint16_t command;	/* message type */
-    uint8_t fnum;	/* number of this fragment */
-    uint8_t nfrags;	/* number of fragments */
+    uint32_t subport;   /* 3rd piece of identifier triple */
+    uint32_t seqno; /* sequence number */
+    uint16_t command;   /* message type */
+    uint8_t fnum;   /* number of this fragment */
+    uint8_t nfrags; /* number of fragments */
 } PayloadHeader;
 
 typedef struct dh {
-    uint16_t tlen;	/* total length of the data */
-    uint16_t flen;	/* length of this fragment */
+    uint16_t tlen;  /* total length of the data */
+    uint16_t flen;  /* length of this fragment */
 } DataHeader;
 
-typedef struct cp {		/* control payload */
+typedef struct cp {     /* control payload */
     PayloadHeader hdr;
 } ControlPayload;
 
 typedef struct conp {
     PayloadHeader hdr;
-    char sname[1];		/* EOS-terminated service name */
+    char sname[1];      /* EOS-terminated service name */
 } ConnectPayload;
 
-typedef struct dp {		/* template for data payload */
+typedef struct dp {     /* template for data payload */
     PayloadHeader hdr;
     DataHeader dhdr;
-    unsigned char data[1];	/* data is address of `len' bytes */
+    unsigned char data[1];  /* data is address of `len' bytes */
 } DataPayload;
 
 #define CP_SIZE sizeof(ControlPayload)
 
-static struct sockaddr_in my_addr;	/* our address information */
+static struct sockaddr_in my_addr;  /* our address information */
 static int my_sock;
 static char my_name[16];
 static unsigned short my_port;
@@ -372,7 +372,7 @@ static void *reader(UNUSED void *args) {
             break;
         }
         case DISCONNECT: {
-            ControlPayload cp;		/* always send a DACK */
+            ControlPayload cp;      /* always send a DACK */
 
             cp_complete(&cp, ep.subport, DACK, seqno, 1, 1);
             (void)send_payload(&ep, &cp, CP_SIZE);
@@ -462,7 +462,7 @@ static void *reader(UNUSED void *args) {
         }
         case PACK: {
             if (cr != NULL) {
-                crecord_setState(cr, cr->state);	/* resets ping data */
+                crecord_setState(cr, cr->state);    /* resets ping data */
             }
             break;
         }
@@ -592,6 +592,8 @@ int rpc_init(unsigned short port) {
         strcpy(my_name, inet_ntoa(tmp));
     } else
         strcpy(my_name, "127.0.0.1");
+    /* temp fix against 127.0.1.1 */
+    strcpy(my_name, "127.0.0.1");
     return common_init(port);
 }
 
@@ -604,18 +606,18 @@ int rpc_init(unsigned short port) {
  *
  *     rpc_suspend();
  *     pid = fork();
- *     if (pid != 0) {			// parent branch
- *         if (pid == -1) {		// error
+ *     if (pid != 0) {          // parent branch
+ *         if (pid == -1) {     // error
  *             rpc_resume();
  *             // note error
- *         } else {			// wait for child to terminate
+ *         } else {         // wait for child to terminate
  *             int status;
  *             (void) wait(&status);
  *             rpc_resume();
  *             // success or error depending upon value of status
  *         }
  *     } else {                         // child branch
- *         pid_t pid = fork();		// zombie-free zone
+ *         pid_t pid = fork();      // zombie-free zone
  *         if (pid == -1)
  *             exit(1);
  *         else if (pid != 0)
@@ -670,7 +672,7 @@ RpcConnection rpc_connect(char *host, unsigned short port,
                           char *svcName, unsigned long seqno) {
     ConnectPayload *buf;
     RpcEndpoint *nep;
-    int len = sizeof(PayloadHeader) + 1;	/* room for '\0' */
+    int len = sizeof(PayloadHeader) + 1;    /* room for '\0' */
     CRecord *cr;
     unsigned long subport;
     unsigned long states[2] = {ST_IDLE, ST_TIMEDOUT};
@@ -681,7 +683,7 @@ RpcConnection rpc_connect(char *host, unsigned short port,
     nep = rpc_socket(host, port, subport);
     if (nep != NULL) {
         id = gen_conn_id();
-        len += strlen(svcName);			/* room for svcName */
+        len += strlen(svcName);         /* room for svcName */
         buf = (ConnectPayload *)malloc(len);
         cp_complete((ControlPayload *)buf, nep->subport, CONNECT, seqno, 1, 1);
         strcpy(buf->sname, svcName);
