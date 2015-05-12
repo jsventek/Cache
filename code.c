@@ -1440,6 +1440,28 @@ static void appendWindow(int lineno, GAPLWindow *w, DataStackEntry *d, DataStack
     }
 }
 
+static GAPLSequence *maximum_map(int lineno, DataStackEntry d, long long element) {
+    GAPLSequence *maxSeq;
+    char **keys;
+    int n, i;
+    signed long long x, max = 0;
+    if (d.type != dPTABLE)
+        execerror(lineno, "maximum map only excepts ptables right now", NULL);
+    n = ptab_keys(d.value.str_v, &keys);
+    if (iflog) fprintf(stderr, "maximum_map entered.\n");
+
+    for (i = 0; i < n; i++) {
+        GAPLSequence *s = ptab_lookup(d.value.str_v, keys[i]);
+        x = s->entries[element].value.int_v;
+        if (max < x) {
+            max = x;
+            free(maxSeq);
+            maxSeq = s;
+        } else free(s);
+    }
+    return maxSeq;
+}
+
 static double maximum(int lineno, GAPLWindow *w) {
     Iterator *it;
     GAPLWindowEntry *we;
@@ -2517,6 +2539,15 @@ void function(MachineContext *mc) {
             execerror(mc->pc->lineno, "incorrectly typed arguments to winElement()", NULL);
         d = winElement(mc->pc->lineno, args[0].value.win_v, args[1].value.int_v);
         d.flags = 0;
+        break;
+    }
+    case 35: { /* real max(map) */
+        if (args[0].type != dPTABLE)
+            execerror(mc->pc->lineno, "attempt to compute maximum of a non-ptable", NULL);
+        d.flags = 0;
+        d.type = dSEQUENCE;
+        d.flags = MUST_FREE;
+        d.value.seq_v = maximum_map(mc->pc->lineno, args[0], args[1].value.int_v);
         break;
     }
     default: {      /* unknown function - should not get here */

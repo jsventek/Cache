@@ -599,7 +599,8 @@ static struct fpstruct functions[] = {
     {"winMax", 1, 1, 31},            /* real winMax(win) */
     {"floor", 1, 1, 32},             /* int floor(real) */
     {"mapSize", 1, 1, 33},           /* int mapSize(map) */
-    {"winElement", 2, 2, 34}         /* win.type winElement(win, int) */
+    {"winElement", 2, 2, 34},        /* win.type winElement(win, int) */
+    {"mapMax", 2, 2, 35}              /* ident mapMax(map) */
 };
 #define NFUNCTIONS (sizeof(functions)/sizeof(struct fpstruct))
 
@@ -674,7 +675,7 @@ top:
             lineno++;
     if (c == '#') {     /* comment to end of line or next # */
         while ((c = get_ch(&ap)) != '\n' && c != '#' && c != EOF)
-          ; /* consume rest of line */
+            ; /* consume rest of line */
         if (c == '\n' || c == '#') {
             lineno++;
             goto top;
