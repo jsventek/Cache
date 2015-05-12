@@ -86,16 +86,16 @@ char errbuf[1024];
     unsigned long long tstampv;
     InstructionEntry *inst;
 }
-%token  <strv>  VAR FIELD STRING FUNCTION PROCEDURE /* tokens that malloc */
+%token  <strv>  VAR FIELD STRING FUNCTION PROCEDURE PARAMTYPE /* tokens that malloc */
 %token  <intv>  SUBSCRIBE TO WHILE IF ELSE INITIALIZATION BEHAVIOR MAP PRINT
 %token  <intv>  BOOLEAN INTEGER ROWS SECS WINDOW DESTROY
-%token  <intv>  BOOLDCL INTDCL REALDCL STRINGDCL TSTAMPDCL IDENTDCL SEQDCL
+%token  <intv>  BOOLDCL INTDCL REALDCL STRINGDCL TSTAMPDCL IDENTDCL SEQDCL EVENTDCL
 %token  <intv>  ITERDCL MAPDCL WINDOWDCL
 %token  <intv>  ASSOCIATE WITH PLUSEQ MINUSEQ
 %token  <dblv>  DOUBLE
 %token  <tstampv> TSTAMP
 %type <strv>  variable
-%type <intv>  variabletype basictype constructedtype maptype windowtype
+%type <intv>  variabletype basictype constructedtype maptype windowtype parameterizedtype
 %type <intv>  argumentlist winconstr
 %type <inst>  condition while end expr begin if else
 %type <inst>  statement assignment minuseq pluseq statementlist body
@@ -218,6 +218,25 @@ declaration:    variabletype variablelist ';' {
                     }
                     ll_destroy(vblnames, NULL); vblnames = NULL;
                   }
+                | parameterizedtype PARAMTYPE variablelist ';' {
+                    char *p;
+                    void *dummy;
+                    long index;
+                    initDSE(&dse, $1, 0);
+                    while (ll_removeFirst(vblnames, (void **)&p)) {
+                      if (hm_containsKey(vars2index, p)) {
+                        comperror(p, ": variable previously defined");
+                        YYABORT;
+                      }
+                      dse.value.ev_v = NULL;
+                      index = al_size(variables);
+                      (void) hm_put(vars2index, p, (void *)index, &dummy);
+                      (void) hm_put(vars2strs, p, $2, &dummy);
+                      (void) al_insert(variables, index, dse_duplicate(dse));
+                      (void) al_insert(index2vars, index, p);
+                    }
+                    ll_destroy(vblnames, NULL); vblnames = NULL;
+                }
                 ;
 basictype:    INTDCL    { $$ = dINTEGER; }
                 | BOOLDCL   { $$ = dBOOLEAN; }
@@ -230,6 +249,9 @@ constructedtype:  SEQDCL    { $$ = dSEQUENCE; }
                 | ITERDCL   { $$ = dITERATOR; }
                 | MAPDCL    { $$ = dMAP; }
                 | WINDOWDCL { $$ = dWINDOW; }
+                | EVENTDCL  { $$ = dEVENT; }
+                ;
+parameterizedtype: EVENTDCL  { $$ = dEVENT; }
                 ;
 variabletype:     basictype
                 | constructedtype
@@ -637,6 +659,7 @@ static struct keyval keywords[] = {
     {"map", MAPDCL},
     {"window", WINDOWDCL},
     {"identifier", IDENTDCL},
+    {"event", EVENTDCL},
     {"if", IF},
     {"else", ELSE},
     {"while", WHILE},
@@ -791,6 +814,28 @@ top:
         *p = '\0';
         a_lval.strv = strdup(sbuf);
         return STRING;
+    }
+    if (c == '<') { /* parameterized type */
+      char d = get_ch(&ap);
+      if (isalpha(d)) { /* if paramtype, next should be an alpha */
+        unget_ch(d, &ap);
+        char sbuf[100], *p;
+        for (p = sbuf; (c = get_ch(&ap)) != '>'; p++) {
+            if (c == '\n' || c == EOF)
+                comperror("missing >", NULL);
+            if (p >= sbuf + sizeof(sbuf) - 1) {
+                *p = '\0';
+                comperror("param too long or space after < needed", sbuf);
+            }
+            *p = backslash(c);
+          }
+          *p = '\0';
+          a_lval.strv = strdup(sbuf);
+          return PARAMTYPE;
+      } 
+      else { /* otherwise it's an expression */
+        unget_ch(d, &ap);
+      }
     }
     c = backslash(c);
     switch (c) {

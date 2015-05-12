@@ -780,8 +780,7 @@ void extract(MachineContext *mc) {
 
 static int simple_type(DataStackEntry *d) {
     int t = d->type;
-
-    return (t == dBOOLEAN || t == dINTEGER || t == dDOUBLE || t == dTSTAMP);
+    return (t == dBOOLEAN || t == dINTEGER || t == dDOUBLE || t == dTSTAMP || t == dEVENT);
 }
 
 void assign(MachineContext *mc) {
@@ -803,6 +802,10 @@ void assign(MachineContext *mc) {
         execerror(mc->pc->lineno,
                   "lhs and rhs of assignment of different types",
                   varName(mc, index));
+    if (t == dEVENT){ /* Need to add/remove new/old references*/
+        ev_release(d->value.ev_v);
+        ev_reference(d2.value.ev_v);
+    }
     if (d2.flags & DUPLICATE) {
         d2.value.str_v = strdup(d2.value.str_v);
         d2.flags &= ~DUPLICATE;     /* make sure duplicate flag false */
