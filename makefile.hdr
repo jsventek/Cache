@@ -1,0 +1,8 @@
+C=gcc
+CFLAGS=-W -Wall -pedantic
+
+all:
+
+agram.c: agram.y
+	yacc -o agram.c -p a_ agram.y
+

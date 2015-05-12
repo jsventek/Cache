@@ -1,0 +1,62 @@
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+
+#include "util.h"
+#include "timestamp.h"
+#include "sqlstmts.h"
+#include "linkedlist.h"
+#include "typetable.h"
+
+extern int yylex();
+
+void yyerror(const char *str)
+{
+    fprintf(stderr,"error: %s\n",str);
+}
+
+int yywrap()
+{
+    return 1;
+}
+
+/* SQL statement to be returned after parsing */
+extern sqlstmt stmt;
+
+/* Temporary lists used while parsing */
+
+/* Select */
+LinkedList *clist;
+LinkedList *cattriblist;
+LinkedList *tlist;
+LinkedList *flist;
+LinkedList *wlist;
+LinkedList *plist; /* pair list */
+sqlwindow *tmpwin;
+int tmpunit;
+sqlfilter *tmpfilter;
+sqlpair *tmppair;
+int tmpvaltype;
+char *tmpvalstr;
+int filtertype;
+char *orderby;
+int countstar;
+LinkedList *grouplist;
+sqlinterval tmpinterval;
+
+/* Create */
+char *tablename;
+LinkedList *colnames;
+LinkedList *coltypes;
+short tabletype;
+short primary_column;
+short column;
+
+/* Insert */
+/* -- tablename definition from above */
+/* -- coltypes definition from above */
+LinkedList *colvals;
+short transform;
+
+/* dummy long for calls to ll_toArray */
+static long dummyLong;

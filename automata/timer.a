@@ -1,0 +1,16 @@
+subscribe t to Timer;
+bool b;
+int i;
+string s;
+real r;
+tstamp ts;
+initialization {
+  b = true;
+  i = 5;
+  s = '12345';
+  r = 123.456;
+}
+behavior {
+  ts = t.tstamp;
+  send(ts, b, i, s, r);
+}

@@ -1,0 +1,479 @@
+%{
+   #include "linkedlist.h"
+   #include "hashmap.h"
+   #include "code.h"
+   #include "dataStackEntry.h"
+   #include "machineContext.h"
+   #include "timestamp.h"
+   #include "event.h"
+   #include "topic.h"
+   #include "a_globals.h"
+   #include "dsemem.h"
+   #include "ptable.h"
+   #include <stdio.h>
+   #include <string.h>
+   #include <ctype.h>
+   #include <signal.h>
+   #include <setjmp.h>
+   #include <string.h>
+   #include <stdlib.h>
+   #include <pthread.h>
+
+   #define TRUE  1
+   #define FALSE 0
+
+   int a_parse();
+   int a_lex();
+   int a_error();
+   void a_init();
+   int backslash();
+   int follow();
+   void field_split();
+   static DataStackEntry dse;
+   static LinkedList *vblnames = NULL;
+   static HashMap *vars2strs = NULL;
+   static int lineno = 1;
+   static char *infile;		/* input file name */
+   static char autoprog[10240];	/* holds text of automaton */
+   static char *ap;		/* pointer used by get_ch and unget_ch */
+   static char **gargv;		/* global argument list */
+   static int gargc;		/* global argument count */
+   HashMap *variables = NULL;
+   HashMap *topics = NULL;
+   HashMap *builtins = NULL;
+   char *progname;
+   char errbuf[1024];
+%}
+%union {
+   char *strv;
+   double dblv;
+   long long intv;
+   unsigned long long tstampv;
+   InstructionEntry *inst;
+}
+%token	<strv>	VAR FIELD STRING FUNCTION PROCEDURE /* tokens that malloc */
+%token	<intv>	SUBSCRIBE TO WHILE IF ELSE INITIALIZATION BEHAVIOR MAP PRINT
+%token	<intv>	BOOLEAN INTEGER ROWS SECS WINDOW DESTROY
+%token	<intv>	BOOLDCL INTDCL REALDCL STRINGDCL TSTAMPDCL IDENTDCL SEQDCL
+%token  <intv>  ITERDCL MAPDCL WINDOWDCL
+%token  <intv>  ASSOCIATE WITH PLUSEQ MINUSEQ
+%token	<dblv>	DOUBLE
+%token	<tstampv> TSTAMP
+%type	<strv>	variable
+%type	<intv>	variabletype basictype constructedtype maptype windowtype
+%type	<intv>	argumentlist winconstr
+%type	<inst>	condition while end expr begin if else
+%type	<inst>	statement assignment pluseq minuseq statementlist body
+%right	'='
+%left	OR
+%left	AND
+%left	'|'
+%left	'&'
+%left	GT GE LT LE EQ NE
+%left	'+' '-'
+%left	'*' '/' '%'
+%left	UNARYMINUS NOT
+%right	'^'
+%%
+automaton:        subscriptions behavior
+                | subscriptions declarations behavior
+                | subscriptions declarations initialization behavior
+                | subscriptions associations behavior
+                | subscriptions associations declarations behavior
+                | subscriptions associations declarations initialization behavior
+                | error
+                ;
+subscriptions:	  subscription
+		| subscriptions subscription
+		;
+subscription:	  SUBSCRIBE VAR TO VAR ';'
+		;
+associations:     association
+                | associations association
+                ;
+association:      ASSOCIATE VAR WITH VAR ';'
+                ;
+declarations:	  declaration
+		| declarations declaration
+		;
+declaration:	  variabletype variablelist ';'
+		;
+basictype:	  INTDCL
+	        | BOOLDCL
+		| REALDCL
+		| STRINGDCL
+		| TSTAMPDCL
+                ;
+constructedtype:  SEQDCL
+		| IDENTDCL
+                | ITERDCL
+                | MAPDCL
+                | WINDOWDCL
+		;
+variabletype:     basictype
+                | constructedtype
+                ;
+maptype:          basictype
+                | SEQDCL
+                | WINDOWDCL
+                ;
+windowtype:       basictype
+		| SEQDCL
+variablelist:	  variable
+		| variablelist ',' variable
+		;
+variable:	  VAR
+		;
+winconstr:        ROWS
+                | SECS
+                ;
+initialization:	  INITIALIZATION '{' statementlist '}'
+		;
+behavior:	  BEHAVIOR '{' statementlist '}'
+		;
+statementlist:	  statement
+		| statementlist statement
+		;
+statement:	  ';'
+		| expr ';'
+                | PRINT '(' expr ')' ';'
+                | DESTROY '(' VAR ')' ';'
+		| PROCEDURE '(' argumentlist ')' ';'
+		| while condition begin body end
+		| if condition begin body end
+		| if condition begin body else begin body end
+		| '{' statementlist '}'
+		;
+body:             statement
+                ;
+argumentlist:	  /* empty */
+		| expr
+		| argumentlist ',' expr
+		;
+assignment:	  VAR '=' expr
+		;
+pluseq:	           VAR PLUSEQ INTEGER
+		;
+minuseq:           VAR MINUSEQ INTEGER
+		;
+condition:	  '(' expr ')'
+		;
+while:		  WHILE
+		;
+if:		  IF
+		;
+else:		  ELSE
+		;
+begin:		  /* nothing */
+		;
+end:		  /* nothing */
+		;
+expr:	          INTEGER
+		| DOUBLE
+		| BOOLEAN
+		| TSTAMP
+		| STRING
+		| VAR
+		| FIELD
+		| assignment
+                | pluseq
+                | minuseq
+                | MAP '(' maptype ')'
+                | WINDOW '(' windowtype ',' winconstr ',' INTEGER ')'
+		| FUNCTION '(' argumentlist ')'
+		| '(' expr ')'
+		| expr '+' expr
+		| expr '-' expr
+		| expr '*' expr
+		| expr '/' expr
+		| expr '%' expr
+		| expr '|' expr
+		| expr '&' expr
+		| '-' expr %prec UNARYMINUS
+		| expr GT expr
+		| expr GE expr
+		| expr LT expr
+		| expr LE expr
+		| expr EQ expr
+		| expr NE expr
+		| expr AND expr
+		| expr OR expr
+		| NOT expr
+		;
+%%
+
+struct fpstruct {
+   char *name;
+   unsigned int min, max, index;
+};
+
+static struct fpstruct functions[] = {
+   {"float", 1, 1, 0},		    /* real float(int) */
+   {"Identifier", 1, MAX_ARGS, 1},  /* identifier Identifier(arg[, ...]) */
+   {"lookup", 2, 2, 2},		    /* map.type lookup(map, identifier) */
+   {"average", 1, 1, 3},	    /* real average(window) */
+   {"stdDev", 1, 1, 4},		    /* real stdDev(window) */
+   {"currentTopic", 0, 0, 5},	    /* string currentTopic() */
+   {"Iterator", 1, 1, 6},  	    /* iterator Iterator(map|win|seq) */
+   {"next", 1, 1, 7},    	    /* identifier|data next(iterator) */
+   {"tstampNow", 0, 0, 8},	    /* tstamp tstampNow() */
+   {"tstampDelta", 3, 3, 9},	    /* tstamp tstampDelta(tstamp, int, bool) */
+   {"tstampDiff", 2, 2, 10},	    /* int tstampDiff(tstamp, tstamp) */
+   {"Timestamp", 1, 1, 11}, 	    /* tstamp Timestamp(string) */
+   {"dayInWeek", 1, 1, 12},	    /* int dayInWeek(tstamp) [Sun/0,Sat/6] */
+   {"hourInDay", 1, 1, 13},	    /* int hourInDay(tstamp) [0..23] */
+   {"dayInMonth", 1, 1, 14},	    /* int dayInMonth(tstamp) [1..31] */
+   {"Sequence", 0, MAX_ARGS, 15},   /* sequence Sequence([arg[, ...]]) */
+   {"hasEntry", 2, 2, 16},          /* bool hasEntry(map, identifier) */
+   {"hasNext", 1, 1, 17},           /* bool hasNext(iterator) */
+   {"String", 1, MAX_ARGS, 18},     /* string String(arg[, ...]) */
+   {"seqElement", 2, 2, 19},        /* basictype seqElement(seq, int) */
+   {"seqSize", 1, 1, 20},           /* int seqSize(seq) */
+   {"IP4Addr", 1, 1, 21},           /* int IP4Addr(string) */
+   {"IP4Mask", 1, 1, 22},           /* int IP4Mask(int) */
+   {"matchNetwork", 3, 3, 23},      /* bool matchNetwork(string, int, int) */
+   {"secondInMinute", 1, 1, 24},    /* int secondInMinute(tstamp) [0..60] */
+   {"minuteInHour", 1, 1, 25},      /* int minuteInHour(tstamp) [0..59] */
+   {"monthInYear", 1, 1, 26},       /* int monthInYear(tstamp) [1..12] */
+   {"yearIn", 1, 1, 27},            /* int yearIn(tstamp) [1900 .. ] */
+   {"power", 1, 2, 28},             /* real power(real, real) */
+   {"winSize", 1, 1, 29},           /* int winSize(win) */
+   {"lsqrf", 1, 1, 30},             /* sequence lsqrf(win) */
+   {"winMax", 1, 1, 31},            /* real winMax(win) */
+   {"floor", 1, 1, 32},             /* int floor(real) */
+   {"mapSize", 1, 1, 33},           /* int mapSize(map) */
+   {"winElement", 2, 2, 34}         /* win.type winElement(win, int) */
+};
+#define NFUNCTIONS (sizeof(functions)/sizeof(struct fpstruct))
+static struct fpstruct procedures[] = {
+   {"topOfHeap", 0, 0, 0},     /* void topOfHeap() */
+   {"insert", 3, 3, 1},	       /* void insert(map, ident, map.type) */
+   {"remove", 2, 2, 2},	       /* void remove(map, ident) */
+   {"send", 1, MAX_ARGS, 3},   /* void send(arg, ...) */
+   {"append", 2, MAX_ARGS, 4}, /* void append(window, window.dtype[, tstamp]) */
+                               /* if wtype == SECS, must provide tstamp */
+                               /* void append(sequence, basictype[, ...]) */
+   {"publish", 2, MAX_ARGS, 5},/* void publish(topic, arg, ...) */
+   {"frequent", 3, 3, 6}       /* void frequent(map, ident, int) */
+};
+#define NPROCEDURES (sizeof(procedures)/sizeof(struct fpstruct))
+
+struct keyval {
+    char *key;
+    int value;
+};
+
+static struct keyval keywords[] = {
+	{"subscribe", SUBSCRIBE},
+	{"to", TO},
+	{"associate", ASSOCIATE},
+	{"with", WITH},
+        {"bool", BOOLDCL},
+	{"int", INTDCL},
+	{"real", REALDCL},
+	{"string", STRINGDCL},
+	{"tstamp", TSTAMPDCL},
+        {"sequence", SEQDCL},
+        {"iterator", ITERDCL},
+        {"map", MAPDCL},
+        {"window", WINDOWDCL},
+	{"identifier", IDENTDCL},
+	{"if", IF},
+	{"else", ELSE},
+	{"while", WHILE},
+	{"initialization", INITIALIZATION},
+	{"behavior", BEHAVIOR},
+	{"Map", MAP},
+        {"Window", WINDOW},
+        {"destroy", DESTROY},
+        {"ROWS", ROWS},
+        {"SECS", SECS}
+};
+#define NKEYWORDS sizeof(keywords)/sizeof(struct keyval)
+
+int get_ch(char **ptr) {
+   char *p = *ptr;
+   int c = *p;
+   if (c)
+      p++;
+   else
+      c = EOF;
+   *ptr = p;
+   return c;
+}
+
+void unget_ch(int c, char **ptr) {
+   char *p = *ptr;
+   *(--p) = c;
+   *ptr = p;
+}
+
+int a_lex() {
+   int c;
+top:
+    while ((c = get_ch(&ap)) == ' ' || c == '\t' || c == '\n')
+        if (c == '\n')
+            lineno++;
+    if (c == '#') { 		/* comment to end of line */
+        while ((c = get_ch(&ap)) != '\n' && c != EOF)
+           ;			/* consume rest of line */
+        if (c == '\n') {
+            lineno++;
+            goto top;
+        }
+    }
+    if (c == EOF)
+        return 0;
+    if (c == '.' || isdigit(c)) {	/* a number */
+        char buf[128], *p;
+        double d;
+        long l;
+        int isfloat = 0;
+        int retval;
+        p = buf;
+        do {
+            if (c == '.')
+                isfloat++;
+            *p++ = c;
+            c = get_ch(&ap);
+        } while (isdigit(c) || c == '.');
+        unget_ch(c, &ap);
+        *p = '\0';
+        if (isfloat) {
+            sscanf(buf, "%lf", &d);
+            a_lval.dblv = d;
+            retval = DOUBLE;
+        } else {
+            sscanf(buf, "%ld", &l);
+            a_lval.intv = l;
+            retval = INTEGER;
+        }
+        return retval;
+    }
+    if (c == '@') {	/* timestamp literal */
+        char buf[20], *p;
+        int n = 16;
+        p = buf;
+        *p++ = c;
+        while (n > 0) {
+            c = get_ch(&ap);
+            if (! isxdigit(c))
+                comperror("syntactically incorrect timestamp", NULL);
+            *p++ = c;
+            n--;
+        }
+        c = get_ch(&ap);
+        if(c != '@')
+            comperror("syntactically incorrect timestamp", NULL);
+        *p++ = c;
+        *p = '\0';
+        a_lval.tstampv = string_to_timestamp(buf);
+        return TSTAMP;
+    }
+    if (isalpha(c)) {
+        char sbuf[100], *p = sbuf;
+	unsigned int i;
+        int isfield = 0;
+
+        do {
+            if (p >= sbuf + sizeof(sbuf) - 1) {
+                *p = '\0';
+                comperror("name too long", sbuf);
+            }
+            *p++ = c;
+            if (c == '.')
+                isfield++;
+        } while ((c = get_ch(&ap)) != EOF && (isalnum(c) || c == '.' || c == '_'));
+        unget_ch(c, &ap);
+        *p = '\0';
+	for (i = 0; i < NFUNCTIONS; i++) {
+            if (strcmp(sbuf, functions[i].name) == 0) {
+                a_lval.strv = strdup(sbuf);
+                return (FUNCTION);
+            }
+        }
+	for (i = 0; i < NPROCEDURES; i++) {
+            if (strcmp(sbuf, procedures[i].name) == 0) {
+                a_lval.strv = strdup(sbuf);
+                return (PROCEDURE);
+            }
+        }
+        if (strcmp(sbuf, "true") == 0) {
+            a_lval.intv = 1;
+            return (BOOLEAN);
+        } else if (strcmp(sbuf, "false") == 0) {
+            a_lval.intv = 0;
+            return (BOOLEAN);
+        }
+	for (i = 0; i < NKEYWORDS; i++) {
+            if (strcmp(sbuf, keywords[i].key) == 0) {
+                return (keywords[i].value);
+            }
+        }
+        if (strcmp(sbuf, "print") == 0)
+            return PRINT;
+        a_lval.strv = strdup(sbuf);
+        if (isfield)
+            return FIELD;
+        else
+            return VAR;
+    }
+    if (c == '\'') {		/* quoted string */
+        char sbuf[100], *p;
+        for (p = sbuf; (c = get_ch(&ap)) != '\''; p++) {
+            if (c == '\n' || c == EOF)
+                comperror("missing quote", NULL);
+            if (p >= sbuf + sizeof(sbuf) - 1) {
+                *p = '\0';
+                comperror("string too long", sbuf);
+            }
+            *p = backslash(c);
+        }
+        *p = '\0';
+        a_lval.strv = strdup(sbuf);
+        return STRING;
+    }
+    c = backslash(c);
+    switch (c) {
+        case '>':	return follow('=', GE, GT);
+        case '<':	return follow('=', LE, LT);
+        case '=':	return follow('=', EQ, '=');
+        case '!':	return follow('=', NE, NOT);
+        case '|':	return follow('|', OR, '|');
+        case '&':	return follow('&', AND, '&');
+        case '+':       return follow('=', PLUSEQ, '+');
+        case '-':       return follow('=', MINUSEQ, '-');
+        case '\n':	lineno++; goto top;
+	default:	return c;
+    }
+}
+
+int backslash(int c) {		/* get next character with \'s interpreted */
+    static char transtab[] = "b\bf\fn\nr\rt\t";
+    if (c != '\\')
+        return c;
+    c = get_ch(&ap);
+    if (islower(c) && strchr(transtab, c))
+        return strchr(transtab, c)[1];
+    return c;
+}
+
+void field_split(char *token, char *variable, char *field) {
+    char *p, *q;
+    p = token;
+    for (q = variable; *p != '\0'; ) {
+        if (*p == '.')
+            break;
+        *q++ = *p++;
+    }
+    *q = '\0';
+    strcpy(field, (*p == '.') ? ++p : p);
+}
+
+int follow(int expect, int ifyes, int ifno) {	/* look ahead for >=, ... */
+    int c = get_ch(&ap);
+    if (c == expect)
+        return ifyes;
+    unget_ch(c, &ap);
+    return ifno;
+}
