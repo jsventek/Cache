@@ -231,10 +231,11 @@ declaration:    variabletype variablelist ';' {
                       dse.value.ev_v = NULL;
                       index = al_size(variables);
                       (void) hm_put(vars2index, p, (void *)index, &dummy);
-                      (void) hm_put(vars2strs, p, $2, &dummy);
+                      (void) hm_put(vars2strs, p, strdup($2), &dummy);
                       (void) al_insert(variables, index, dse_duplicate(dse));
                       (void) al_insert(index2vars, index, p);
                     }
+                    free($2);
                     ll_destroy(vblnames, NULL); vblnames = NULL;
                 }
                 ;
