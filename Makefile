@@ -2,23 +2,32 @@ CC=gcc
 LEX=flex
 CFLAGS=-W -Wall
 #CFLAGS=-W -Wall -DDEBUG -g
+
+ifeq ($(OS),Cygwin)
+    EXT=.exe
+    LIBS=
+else
+    EXT=
+    LIBS=-pthread
+endif
+
 OBJECTS=agram.o automaton.o code.o topic.o scan.o gram.o event.o pubsub.o stack.o dsemem.o typetable.o sqlstmts.o nodecrawler.o mb.o rtab.o parser.o table.o indextable.o hwdb.o
-PROGRAMS=cache.exe cacheclient.exe registercallback.exe
-LIBS=/usr/local/lib/libADTS.a /usr/local/lib/libsrpc.a -lpthread
+PROGRAMS=cache$(EXT) cacheclient$(EXT) registercallback$(EXT) striplf$(EXT)
+LIBS+=/usr/local/lib/libADTs.a /usr/local/lib/libsrpc.a -lm
 
 all: $(PROGRAMS)
 
 clean:
-	rm -f *.o agram.c gram.h gram.c $(PROGRAMS) *~
+	rm -f *.o agram.c gram.h gram.c scan.c $(PROGRAMS) *~
 
-cache.exe: cache.o hwdb.o rtab.o timestamp.o mb.o indextable.o topic.o automaton.o parser.o sqlstmts.o table.o typetable.o ptable.o nodecrawler.o event.o stack.o dsemem.o agram.o code.o gram.o scan.o
-	gcc -o cache.exe $^ $(LIBS)
+cache$(EXT): cache.o hwdb.o rtab.o timestamp.o mb.o indextable.o topic.o automaton.o parser.o sqlstmts.o table.o typetable.o ptable.o nodecrawler.o event.o stack.o dsemem.o agram.o code.o gram.o scan.o
+	gcc -o cache$(EXT) $^ $(LIBS)
 
-cacheclient.exe: cacheclient.o rtab.o typetable.o sqlstmts.o timestamp.o
-	gcc -o cacheclient.exe $^ $(LIBS)
+cacheclient$(EXT): cacheclient.o rtab.o typetable.o sqlstmts.o timestamp.o
+	gcc -o cacheclient$(EXT) $^ $(LIBS)
 
-registercallback.exe: registercallback.o
-	gcc -o registercallback.exe $^ $(LIBS)
+registercallback$(EXT): registercallback.o
+	gcc -o registercallback$(EXT) $^ $(LIBS)
 
 agram.c: agram.y code.h dataStackEntry.h machineContext.h timestamp.h event.h topic.h a_globals.h dsemem.h ptable.h stack.h automaton.h 
 	yacc -o agram.c -p a_ agram.y
