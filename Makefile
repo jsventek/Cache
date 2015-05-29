@@ -63,3 +63,8 @@ timestamp.o: timestamp.c timestamp.h
 ptable.o: ptable.c ptable.h dataStackEntry.h hwdb.h table.h nodecrawler.h topic.h tuple.h typetable.h rtab.h pubsub.h automaton.h sqlstmts.h node.h config.h event.h timestamp.h
 cacheclient.o: cacheclient.c config.h util.h rtab.h 
 registercallback.o: registercallback.c config.h util.h rtab.h 
+
+MINS=10
+PORT=1234
+reg_automaton: registercallback.o striplf.o
+	./registercallback -p $(PORT) -t $(MINS) -a "$(shell ./striplf automata/$(A))"

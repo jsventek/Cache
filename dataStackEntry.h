@@ -39,23 +39,24 @@
  * the data stack for the event processor is an array of the following structs
  */
 
+#define dNULL      0
 #define dBOOLEAN   1
 #define dINTEGER   2
 #define dDOUBLE    3
 #define dTSTAMP    4
 #define dSTRING    5
 #define dEVENT     6
-#define dMAP	   7
+#define dMAP       7
 #define dIDENT     8
 #define dTIDENT    9
-#define dWINDOW	  10
+#define dWINDOW   10
 #define dITERATOR 11
 #define dSEQUENCE 12
 #define dPTABLE   13
 
-#define DUPLICATE 1	/* bit indicating that it must be duplicated */
-#define MUST_FREE 2	/* bit indicating that must free when done with it */
-#define NOTASSIGN 4	/* bit indicating that it cannot be assigned*/
+#define DUPLICATE 1 /* bit indicating that it must be duplicated */
+#define MUST_FREE 2 /* bit indicating that must free when done with it */
+#define NOTASSIGN 4 /* bit indicating that it cannot be assigned*/
 
 #define dROWS 21
 #define dSECS 22
@@ -76,7 +77,7 @@ typedef struct gaplwindow {
 
 typedef struct gapliterator {
     int type;
-    int dtype;		/* needed for window iterator */
+    int dtype;      /* needed for window iterator */
     int next;
     int size;
     union {
@@ -100,7 +101,7 @@ typedef struct dataStackEntry {
         GAPLWindow *win_v;
         GAPLIterator *iter_v;
         GAPLSequence *seq_v;
-        struct dataStackEntry *next;	/* used to link onto free list */
+        struct dataStackEntry *next;    /* used to link onto free list */
     } value;
 } DataStackEntry;
 

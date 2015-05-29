@@ -780,8 +780,7 @@ void extract(MachineContext *mc) {
 
 static int simple_type(DataStackEntry *d) {
     int t = d->type;
-
-    return (t == dBOOLEAN || t == dINTEGER || t == dDOUBLE || t == dTSTAMP);
+    return (t == dNULL || t == dBOOLEAN || t == dINTEGER || t == dDOUBLE || t == dTSTAMP || t == dEVENT);
 }
 
 void assign(MachineContext *mc) {
@@ -799,16 +798,37 @@ void assign(MachineContext *mc) {
     t = d2.type;
     index = (long)d1.value.int_v;
     (void) al_get(mc->variables, index, (void **)&d);
-    if (t != d->type)
+    if ((t != d->type) & (t != dNULL)) { /*Only allow NULL type inequality */
         execerror(mc->pc->lineno,
                   "lhs and rhs of assignment of different types",
                   varName(mc, index));
+    }
+    if (t == dEVENT) { /* Need to add/remove new/old references*/
+        ev_release(d->value.ev_v);
+        ev_reference(d2.value.ev_v);
+    }
+    else if (t == dNULL) {
+        initDSE(&d2, d->type, d->flags);
+        switch(d2.type) {
+            case dBOOLEAN:  d2.value.bool_v = 0; break;
+            case dINTEGER:  d2.value.int_v = 0; break;
+            case dDOUBLE:   d2.value.dbl_v = 0; break;
+            case dTSTAMP:   d2.value.tstamp_v = 0; break;
+            case dSTRING:   d2.value.str_v = NULL; break;
+            case dMAP:      d2.value.map_v = NULL; break;
+            case dIDENT:    d2.value.str_v = NULL; break;
+            case dWINDOW:   d2.value.win_v = NULL; break;
+            case dITERATOR: d2.value.iter_v = NULL; break;
+            case dSEQUENCE: d2.value.seq_v = NULL; break;
+            case dEVENT:    d2.value.ev_v = NULL; break;
+        }
+    }
     if (d2.flags & DUPLICATE) {
         d2.value.str_v = strdup(d2.value.str_v);
-        d2.flags &= ~DUPLICATE;		/* make sure duplicate flag false */
+        d2.flags &= ~DUPLICATE;     /* make sure duplicate flag false */
         d2.flags |= MUST_FREE;
     }
-    d2.flags |= NOTASSIGN;		/* prevent aliasing */
+    d2.flags |= NOTASSIGN;      /* prevent aliasing */
     (void)al_set(mc->variables, dse_duplicate(d2), index, &v);
     if (v && t != dSEQUENCE && t != dWINDOW) {
         freeDSE((DataStackEntry *)v);
@@ -888,7 +908,24 @@ static int compare(int lineno, DataStackEntry *d1, DataStackEntry *d2) {
             execerror(lineno, "attempting to compare structured datatypes", NULL);
             break;
         }
-    } else
+    } 
+    else if (t2 == dNULL) {/* NULL comparison against non-NULL type*/
+        switch(d1->type) {
+            case dBOOLEAN:     (d1->value.bool_v == 0 ? a = 0 : 1); break;
+            case dINTEGER:      (d1->value.int_v == 0 ? a = 0 : 1); break;
+            case dDOUBLE:       (d1->value.dbl_v == 0 ? a = 0 : 1); break;
+            case dTSTAMP:    (d1->value.tstamp_v == 0 ? a = 0 : 1); break;
+            case dSTRING:    (d1->value.str_v == NULL ? a = 0 : 1); break;
+            case dMAP:       (d1->value.map_v == NULL ? a = 0 : 1); break;
+            case dIDENT:     (d1->value.str_v == NULL ? a = 0 : 1); break;
+            case dWINDOW:    (d1->value.win_v == NULL ? a = 0 : 1); break;
+            case dITERATOR: (d1->value.iter_v == NULL ? a = 0 : 1); break;
+            case dSEQUENCE:  (d1->value.seq_v == NULL ? a = 0 : 1); break;
+            case dEVENT:      (d1->value.ev_v == NULL ? a = 0 : 1); break;
+            default: execerror(lineno, "attempting to compare unknown datatype to NULL", NULL);break;
+        }
+    }
+    else
         execerror(lineno, "attempting to compare different data types", NULL);
     return a;
 }
@@ -1035,7 +1072,7 @@ void not(MachineContext *mc) {
 
 void whilecode(MachineContext *mc) {
     DataStackEntry d;
-    InstructionEntry *base = mc->pc - 1;	/* autoincrement happened before call */
+    InstructionEntry *base = mc->pc - 1;    /* autoincrement happened before call */
     InstructionEntry *body = base + mc->pc->u.offset;
     InstructionEntry *nextStmt = base + (mc->pc+1)->u.offset;
     InstructionEntry *condition = mc->pc + 2;
@@ -1175,7 +1212,7 @@ static void lookup(int lineno, DataStackEntry *table, char *id, DataStackEntry *
     if (iflog) fprintf(stderr, "lookup entered.\n");
     if (hm_get((table->value.map_v)->hm, id, (void **)&p))
         *d = *p;
-    else		/* id not defined, execerror */
+    else        /* id not defined, execerror */
         execerror(lineno, id, " not mapped to a value");
 }
 
@@ -1184,7 +1221,7 @@ static void lookup(int lineno, DataStackEntry *table, char *id, DataStackEntry *
 static void appendSequence(int lineno, GAPLSequence *s, int nargs, DataStackEntry *args) {
     int i, ndx;
     DataStackEntry *d;
-    if ((s->size - s->used) < nargs) {	/* have to grow the array */
+    if ((s->size - s->used) < nargs) {  /* have to grow the array */
         DataStackEntry *p, *q;
         int n = s->size + DEFAULT_SEQ_INCR;
         q = (DataStackEntry *)malloc(n * sizeof(DataStackEntry));
@@ -1233,10 +1270,11 @@ static void insert(int lineno, DataStackEntry *table, char *id, DataStackEntry *
         d->flags = 0;
     if (hm_put((table->value.map_v)->hm, id, d, &olddatum) && olddatum) {
         DataStackEntry *dse = (DataStackEntry *)olddatum;
-        //if (dse->type != dSEQUENCE && dse->type != dWINDOW)
-        freeDSE(dse);
-        // dse_free(dse);
-
+        /* Want to keep windows/sequences/maps alive */
+        if (dse->flags == MUST_FREE) {
+            freeDSE(dse);
+        }
+        dse_free(dse); /* But can free the old dse pointing to it */
     }
 }
 
@@ -1395,9 +1433,6 @@ static void appendWindow(int lineno, GAPLWindow *w, DataStackEntry *d, DataStack
         we.dse.type = d->type;
         GAPLSequence *u = (GAPLSequence *) d->value.seq_v;
         we.dse.value.seq_v = genSequence(lineno, (long long) u->size, u->entries);
-        /*printf("[alex] add ");
-        printDSE(&we.dse, stdout);
-        printf("\n");*/
     } else {
         we.dse = *d;
     }
@@ -1409,7 +1444,8 @@ static void appendWindow(int lineno, GAPLWindow *w, DataStackEntry *d, DataStack
         we.dse.flags = 0;
     if (w->wtype == dSECS)
         we.tstamp = ts->value.tstamp_v;
-    (void) ll_addFirst(w->ll, we_duplicate(we));
+    /* Append new entry to the end */
+    (void) ll_addLast(w->ll, we_duplicate(we));
     n = 0;
     switch(w->wtype) {
     case dROWS:
@@ -1431,12 +1467,35 @@ static void appendWindow(int lineno, GAPLWindow *w, DataStackEntry *d, DataStack
         break;
     }
     }
+    /* Window slides to right and drops old entries */
     while (n-- >0) {
         GAPLWindowEntry *entry;
         (void) ll_removeFirst(w->ll, (void **)&entry);
         freeDSE(&entry->dse);
         free(entry);
     }
+}
+
+static GAPLSequence *maximum_map(int lineno, DataStackEntry d, long long element) {
+    GAPLSequence *maxSeq;
+    char **keys;
+    int n, i;
+    signed long long x, max = 0;
+    if (d.type != dPTABLE)
+        execerror(lineno, "maximum map only excepts ptables right now", NULL);
+    n = ptab_keys(d.value.str_v, &keys);
+    if (iflog) fprintf(stderr, "maximum_map entered.\n");
+
+    for (i = 0; i < n; i++) {
+        GAPLSequence *s = ptab_lookup(d.value.str_v, keys[i]);
+        x = s->entries[element].value.int_v;
+        if (max < x) {
+            max = x;
+            free(maxSeq);
+            maxSeq = s;
+        } else free(s);
+    }
+    return maxSeq;
 }
 
 static double maximum(int lineno, GAPLWindow *w) {
@@ -1956,11 +2015,11 @@ void procedure(MachineContext *mc) {
         fprintf(stderr, ")\n");
     }
     switch(range->index) {
-    case 0: {		/* void topOfHeap() */
+    case 0: {       /* void topOfHeap() */
         //mem_heap_end_address("Top of heap: ");
         break;
     }
-    case 1: {		/* void insert(map, ident, map.type) */
+    case 1: {       /* void insert(map, ident, map.type) */
         /* args[0] is map, args[1] is ident, args[2] is new value */
         if (args[0].type == dMAP) {
             insert(mc->pc->lineno, args+0, args[1].value.str_v, args+2);
@@ -1973,7 +2032,7 @@ void procedure(MachineContext *mc) {
             freeDSE(args+1);
         break;
     }
-    case 2: {		/* void remove(map, ident) */
+    case 2: {       /* void remove(map, ident) */
         /* args[0] is map, args[1] is ident */
         if (args[0].type != dMAP || args[1].type != dIDENT)
             execerror(mc->pc->lineno, "incorrect data types in call to remove()", NULL);
@@ -1982,7 +2041,7 @@ void procedure(MachineContext *mc) {
             freeDSE(args+1);
         break;
     }
-    case 3: {		/* void send(arg, ...) [max 20 args] */
+    case 3: {       /* void send(arg, ...) [max 20 args] */
         if (args[0].type == dWINDOW) {
             // printf("[alex] send window\n");
             if (narg.value.int_v != 1)
@@ -1995,7 +2054,7 @@ void procedure(MachineContext *mc) {
         }
         break;
     }
-    case 4: {		/* void append(window, window.dtype[, tstamp]); */
+    case 4: {       /* void append(window, window.dtype[, tstamp]); */
         /* void append(sequence, arg[, ...]) */
         /*
          * two arguments are required for ROWS limited windows
@@ -2017,7 +2076,7 @@ void procedure(MachineContext *mc) {
         }
         break;
     }
-    case 5: {		/* void publish(topic, arg, ...) [max 20 args] */
+    case 5: {       /* void publish(topic, arg, ...) [max 20 args] */
         publishevent(mc, narg.value.int_v, args);
         break;
     }
@@ -2213,7 +2272,7 @@ void function(MachineContext *mc) {
         fprintf(stderr, ")\n");
     }
     switch(range->index) {
-    case 0: {		/* real float(int) */
+    case 0: {       /* real float(int) */
         d.type = dDOUBLE;
         d.flags = 0;
         if (args[0].type == dINTEGER)
@@ -2224,13 +2283,13 @@ void function(MachineContext *mc) {
             execerror(mc->pc->lineno, "argument to float must be an int", NULL);
         break;
     }
-    case 1: {		/* identifier Identifier(arg, ...) [max 20 args] */
+    case 1: {       /* identifier Identifier(arg, ...) [max 20 args] */
         d.type = dIDENT;
         d.flags = MUST_FREE;
         d.value.str_v = concat(dIDENT, narg.value.int_v, args);
         break;
     }
-    case 2: {		/* map.type lookup(map, identifier) */
+    case 2: {       /* map.type lookup(map, identifier) */
         /* args[0] is map, args[1] is ident to search for */
         if (args[0].type == dMAP) {
             lookup(mc->pc->lineno, args+0, args[1].value.str_v, &d);
@@ -2249,7 +2308,7 @@ void function(MachineContext *mc) {
             freeDSE(args+1);
         break;
     }
-    case 3: {		/* real average(window) */
+    case 3: {       /* real average(window) */
         if (args[0].type != dWINDOW)
             execerror(mc->pc->lineno, "attempt to compute average of a non-window", NULL);
         d.type = dDOUBLE;
@@ -2257,7 +2316,7 @@ void function(MachineContext *mc) {
         d.value.dbl_v = average(mc->pc->lineno, args[0].value.win_v);
         break;
     }
-    case 4: {		/* real stdDev(window) */
+    case 4: {       /* real stdDev(window) */
         if (args[0].type != dWINDOW)
             execerror(mc->pc->lineno, "attempt to compute std deviation of a non-window", NULL);
         d.type = dDOUBLE;
@@ -2265,13 +2324,13 @@ void function(MachineContext *mc) {
         d.value.dbl_v = std_dev(mc->pc->lineno, args[0].value.win_v);
         break;
     }
-    case 5: {		/* string currentTopic() */
+    case 5: {       /* string currentTopic() */
         d.type = dSTRING;
         d.flags = 0;
         d.value.str_v = mc->currentTopic;
         break;
     }
-    case 6: {		/* iterator Iterator(map|win|seq) */
+    case 6: {       /* iterator Iterator(map|win|seq) */
         if (args[0].type != dMAP && args[0].type != dPTABLE && args[0].type != dWINDOW)
             execerror(mc->pc->lineno, "incorrectly typed argument to Iterator()", NULL);
         d.type = dITERATOR;
@@ -2279,19 +2338,19 @@ void function(MachineContext *mc) {
         d.value.iter_v = genIterator(mc->pc->lineno, args[0]);
         break;
     }
-    case 7: {		/* identifier|data next(iterator) */
+    case 7: {       /* identifier|data next(iterator) */
         if (args[0].type != dITERATOR)
             execerror(mc->pc->lineno, "incorrectly typed argument to next()", NULL);
         d = nextElement(mc->pc->lineno, args[0].value.iter_v);
         break;
     }
-    case 8: {		/* tstamp tstampNow() */
+    case 8: {       /* tstamp tstampNow() */
         d.type = dTSTAMP;
         d.flags = 0;
         d.value.tstamp_v = timestamp_now();
         break;
     }
-    case 9: {		/* tstamp tstampDelta(tstamp, int, bool) */
+    case 9: {       /* tstamp tstampDelta(tstamp, int, bool) */
         long units;
         int ifmillis;
         tstamp_t ts;
@@ -2309,7 +2368,7 @@ void function(MachineContext *mc) {
             d.value.tstamp_v = timestamp_sub_incr(ts, -units, ifmillis);
         break;
     }
-    case 10: {		/* int tstampDiff(tstamp, tstamp) */
+    case 10: {      /* int tstampDiff(tstamp, tstamp) */
         long long diff;
         if (args[0].type != dTSTAMP || args[1].type != dTSTAMP)
             execerror(mc->pc->lineno, "incorrectly typed arguments to tstampDiff()", NULL);
@@ -2322,7 +2381,7 @@ void function(MachineContext *mc) {
         d.value.int_v = diff;
         break;
     }
-    case 11: {		/* tstamp Timestamp(string) */
+    case 11: {      /* tstamp Timestamp(string) */
         if (args[0].type != dSTRING)
             execerror(mc->pc->lineno, "incorrectly typed argument to Timestamp()", NULL);
         d.type = dTSTAMP;
@@ -2332,7 +2391,7 @@ void function(MachineContext *mc) {
             freeDSE(&args[0]);
         break;
     }
-    case 12: {		/* int dayInWeek(tstamp) [Sun is 0, Sat is 6] */
+    case 12: {      /* int dayInWeek(tstamp) [Sun is 0, Sat is 6] */
         if (args[0].type != dTSTAMP)
             execerror(mc->pc->lineno, "incorrectly typed argument to dayInWeek()", NULL);
         d.type = dINTEGER;
@@ -2340,7 +2399,7 @@ void function(MachineContext *mc) {
         d.value.int_v = ts_field_value(DAY_IN_WEEK, args[0].value.tstamp_v);
         break;
     }
-    case 13: {		/* int hourInDay(tstamp) [0 .. 23] */
+    case 13: {      /* int hourInDay(tstamp) [0 .. 23] */
         if (args[0].type != dTSTAMP)
             execerror(mc->pc->lineno, "incorrectly typed argument to hourInDay()", NULL);
         d.type = dINTEGER;
@@ -2348,7 +2407,7 @@ void function(MachineContext *mc) {
         d.value.int_v = ts_field_value(HOUR_IN_DAY, args[0].value.tstamp_v);
         break;
     }
-    case 14: {		/* int dayInMonth(tstamp) [1..31] */
+    case 14: {      /* int dayInMonth(tstamp) [1..31] */
         if (args[0].type != dTSTAMP)
             execerror(mc->pc->lineno, "incorrectly typed argument to dayInMonth()", NULL);
         d.type = dINTEGER;
@@ -2356,13 +2415,13 @@ void function(MachineContext *mc) {
         d.value.int_v = ts_field_value(DAY_IN_MONTH, args[0].value.tstamp_v);
         break;
     }
-    case 15: {		/* sequence Sequence() */
+    case 15: {      /* sequence Sequence() */
         d.type = dSEQUENCE;
         d.flags = 0;
         d.value.seq_v = genSequence(mc->pc->lineno, narg.value.int_v, args);
         break;
     }
-    case 16: {		/* bool hasEntry(map, identifier) */
+    case 16: {      /* bool hasEntry(map, identifier) */
         if (! (args[1].type == dIDENT &&
                 (args[0].type == dMAP || args[0].type == dPTABLE)))
             execerror(mc->pc->lineno, "incorrectly typed arguments to hasEntry()", NULL);
@@ -2371,7 +2430,7 @@ void function(MachineContext *mc) {
         d.value.bool_v = hasEntry(args, args[1].value.str_v);
         break;
     }
-    case 17: {		/* bool hasNext(iterator) */
+    case 17: {      /* bool hasNext(iterator) */
         if (args[0].type != dITERATOR)
             execerror(mc->pc->lineno, "incorrectly typed argument to hasNext()", NULL);
         d.type = dBOOLEAN;
@@ -2379,20 +2438,20 @@ void function(MachineContext *mc) {
         d.value.bool_v = hasNext(args[0].value.iter_v);
         break;
     }
-    case 18: {		/* string String(arg[, ...]) */
+    case 18: {      /* string String(arg[, ...]) */
         d.type = dSTRING;
         d.flags = MUST_FREE;
         d.value.str_v = concat(dSTRING, narg.value.int_v, args);
         break;
     }
-    case 19: {		/* basictype seqElement(seq, int) */
+    case 19: {      /* basictype seqElement(seq, int) */
         if (args[0].type != dSEQUENCE || args[1].type != dINTEGER)
             execerror(mc->pc->lineno, "incorrectly typed arguments to seqElement()", NULL);
         d = seqElement(mc->pc->lineno, args[0].value.seq_v, args[1].value.int_v);
         d.flags = 0;
         break;
     }
-    case 20: {		/* int seqSize(seq) */
+    case 20: {      /* int seqSize(seq) */
         if (args[0].type != dSEQUENCE)
             execerror(mc->pc->lineno, "incorrectly typed argument to seqSize()", NULL);
         d.type = dINTEGER;
@@ -2400,7 +2459,7 @@ void function(MachineContext *mc) {
         d.value.int_v = args[0].value.seq_v->used;
         break;
     }
-    case 21: {		/* int IP4Addr(string) */
+    case 21: {      /* int IP4Addr(string) */
         if (args[0].type != dSTRING)
             execerror(mc->pc->lineno, "incorrectly typed argument to IP4Addr()", NULL);
         d.type = dINTEGER;
@@ -2408,7 +2467,7 @@ void function(MachineContext *mc) {
         d.value.int_v = IP4Addr(mc->pc->lineno, args[0].value.str_v);
         break;
     }
-    case 22: {		/* int IP4Mask(int slashN) */
+    case 22: {      /* int IP4Mask(int slashN) */
         if (args[0].type != dINTEGER)
             execerror(mc->pc->lineno, "incorrectly typed argument to IP4Mask()", NULL);
         d.type = dINTEGER;
@@ -2416,7 +2475,7 @@ void function(MachineContext *mc) {
         d.value.int_v = IP4Mask(args[0].value.int_v);
         break;
     }
-    case 23: {		/* bool matchNetwork(string, int, int) */
+    case 23: {      /* bool matchNetwork(string, int, int) */
         if (args[0].type != dSTRING || args[1].type != dINTEGER
                 || args[2].type != dINTEGER)
             execerror(mc->pc->lineno, "incorrectly typed arguments to matchNetwork()", NULL);
@@ -2428,7 +2487,7 @@ void function(MachineContext *mc) {
                                       args[2].value.int_v);
         break;
     }
-    case 24: {		/* int secondInMinute(tstamp) [0 .. 60] */
+    case 24: {      /* int secondInMinute(tstamp) [0 .. 60] */
         if (args[0].type != dTSTAMP)
             execerror(mc->pc->lineno, "incorrectly typed argument to secondInMinute()", NULL);
         d.type = dINTEGER;
@@ -2436,7 +2495,7 @@ void function(MachineContext *mc) {
         d.value.int_v = ts_field_value(SEC_IN_MIN, args[0].value.tstamp_v);
         break;
     }
-    case 25: {		/* int minuteInHour(tstamp) [0 .. 59] */
+    case 25: {      /* int minuteInHour(tstamp) [0 .. 59] */
         if (args[0].type != dTSTAMP)
             execerror(mc->pc->lineno, "incorrectly typed argument to minuteInHour()", NULL);
         d.type = dINTEGER;
@@ -2444,7 +2503,7 @@ void function(MachineContext *mc) {
         d.value.int_v = ts_field_value(MIN_IN_HOUR, args[0].value.tstamp_v);
         break;
     }
-    case 26: {		/* int monthInYear(tstamp) [1 .. 12] */
+    case 26: {      /* int monthInYear(tstamp) [1 .. 12] */
         if (args[0].type != dTSTAMP)
             execerror(mc->pc->lineno, "incorrectly typed argument to monthInYear()", NULL);
         d.type = dINTEGER;
@@ -2452,7 +2511,7 @@ void function(MachineContext *mc) {
         d.value.int_v = ts_field_value(MONTH_IN_YEAR, args[0].value.tstamp_v);
         break;
     }
-    case 27: {		/* int yearIn(tstamp) [1900 .. ] */
+    case 27: {      /* int yearIn(tstamp) [1900 .. ] */
         if (args[0].type != dTSTAMP)
             execerror(mc->pc->lineno, "incorrectly typed argument to yearIn()", NULL);
         d.type = dINTEGER;
@@ -2518,7 +2577,16 @@ void function(MachineContext *mc) {
         d.flags = 0;
         break;
     }
-    default: {		/* unknown function - should not get here */
+    case 35: { /* real max(map) */
+        if (args[0].type != dPTABLE)
+            execerror(mc->pc->lineno, "attempt to compute maximum of a non-ptable", NULL);
+        d.flags = 0;
+        d.type = dSEQUENCE;
+        d.flags = MUST_FREE;
+        d.value.seq_v = maximum_map(mc->pc->lineno, args[0], args[1].value.int_v);
+        break;
+    }
+    default: {      /* unknown function - should not get here */
         execerror(mc->pc->lineno, name.value.str_v, "unknown function");
         break;
     }

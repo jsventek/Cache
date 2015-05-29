@@ -1,0 +1,27 @@
+subscribe t to Timer;
+iterator it;
+sequence averages;
+map windows;
+window w;
+int i;
+initialization {
+  windows = Map(window);
+  w = Window(int, ROWS, 10);
+  i = 0;
+  append(w, i);
+  insert(windows, Identifier(0), w);
+}
+behavior {
+  w = lookup(windows, Identifier(0));
+  it = Iterator(w);
+  while (hasNext(it)){
+    print(String(next(it)));
+  }
+  i += 1;
+  append(w, i);
+  it = Iterator(w);
+  while (hasNext(it)){
+    print(String(next(it)));
+  }
+  insert(windows, Identifier(0), w);
+}
