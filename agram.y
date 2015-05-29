@@ -65,11 +65,11 @@ static DataStackEntry dse;
 static LinkedList *vblnames = NULL;
 static HashMap *vars2strs = NULL;
 static int lineno = 1;
-static char *infile;		/* input file name */
-static char autoprog[10240];	/* holds text of automaton */
-static char *ap;		/* pointer used by get_ch and unget_ch */
-static char **gargv;		/* global argument list */
-static int gargc;		/* global argument count */
+static char *infile;    /* input file name */
+static char autoprog[10240];  /* holds text of automaton */
+static char *ap;    /* pointer used by get_ch and unget_ch */
+static char **gargv;    /* global argument list */
+static int gargc;   /* global argument count */
 HashMap *vars2index = NULL;
 HashMap *topics = NULL;
 HashMap *builtins = NULL;
@@ -86,29 +86,30 @@ char errbuf[1024];
     unsigned long long tstampv;
     InstructionEntry *inst;
 }
-%token	<strv>	VAR FIELD STRING FUNCTION PROCEDURE /* tokens that malloc */
-%token	<intv>	SUBSCRIBE TO WHILE IF ELSE INITIALIZATION BEHAVIOR MAP PRINT
-%token	<intv>	BOOLEAN INTEGER ROWS SECS WINDOW DESTROY
-%token	<intv>	BOOLDCL INTDCL REALDCL STRINGDCL TSTAMPDCL IDENTDCL SEQDCL
+
+%token  <strv>  VAR FIELD STRING FUNCTION PROCEDURE PARAMTYPE /* tokens that malloc */
+%token  <intv>  SUBSCRIBE TO WHILE IF ELSE INITIALIZATION BEHAVIOR MAP PRINT
+%token  <intv>  BOOLEAN INTEGER ROWS SECS WINDOW DESTROY NULLVAL
+%token  <intv>  BOOLDCL INTDCL REALDCL STRINGDCL TSTAMPDCL IDENTDCL SEQDCL EVENTDCL
 %token  <intv>  ITERDCL MAPDCL WINDOWDCL
 %token  <intv>  ASSOCIATE WITH PLUSEQ MINUSEQ
-%token	<dblv>	DOUBLE
-%token	<tstampv> TSTAMP
-%type	<strv>	variable
-%type	<intv>	variabletype basictype constructedtype maptype windowtype
-%type	<intv>	argumentlist winconstr
-%type	<inst>	condition while end expr begin if else
-%type	<inst>	statement assignment pluseq minuseq statementlist body
-%right	'='
-%left	OR
-%left	AND
-%left	'|'
-%left	'&'
-%left	GT GE LT LE EQ NE
-%left	'+' '-'
-%left	'*' '/' '%'
-%left	UNARYMINUS NOT
-%right	'^'
+%token  <dblv>  DOUBLE
+%token  <tstampv> TSTAMP
+%type <strv>  variable
+%type <intv>  variabletype basictype constructedtype maptype windowtype parameterizedtype
+%type <intv>  argumentlist winconstr
+%type <inst>  condition while end expr begin if else
+%type <inst>  statement assignment minuseq pluseq statementlist body
+%right  '='
+%left OR
+%left AND
+%left '|'
+%left '&'
+%left GT GE LT LE EQ NE
+%left '+' '-'
+%left '*' '/' '%'
+%left UNARYMINUS NOT
+%right  '^'
 
 %%
 
@@ -140,10 +141,10 @@ automaton:        subscriptions behavior {
                     YYABORT;
                   }
                 ;
-subscriptions:	  subscription
+subscriptions:    subscription
                 | subscriptions subscription
                 ;
-subscription:	  SUBSCRIBE VAR TO VAR ';' {
+subscription:   SUBSCRIBE VAR TO VAR ';' {
                     void *dummy;
                     long index;
                     if (! top_exist($4)) {
@@ -186,10 +187,10 @@ association:      ASSOCIATE VAR WITH VAR ';' {
                     (void) al_insert(index2vars, index, $2);
                   }
                 ;
-declarations:	  declaration
+declarations:   declaration
                 | declarations declaration
                 ;
-declaration:	  variabletype variablelist ';' {
+declaration:    variabletype variablelist ';' {
                     char *p;
                     void *dummy;
                     long index;
@@ -200,16 +201,16 @@ declaration:	  variabletype variablelist ';' {
                         YYABORT;
                       }
                       switch(dse.type) {
-                      case dBOOLEAN:	dse.value.bool_v = 0; break;
-                      case dINTEGER:	dse.value.int_v = 0; break;
-                      case dDOUBLE:	dse.value.dbl_v = 0; break;
-                      case dTSTAMP:	dse.value.tstamp_v = 0; break;
-                      case dSTRING:	dse.value.str_v = NULL; break;
-                      case dMAP:	dse.value.map_v = NULL; break;
-                      case dIDENT:	dse.value.str_v = NULL; break;
-                      case dWINDOW:	dse.value.win_v = NULL; break;
-                      case dITERATOR:	dse.value.iter_v = NULL; break;
-                      case dSEQUENCE:	dse.value.seq_v = NULL; break;
+                      case dBOOLEAN:  dse.value.bool_v = 0; break;
+                      case dINTEGER:  dse.value.int_v = 0; break;
+                      case dDOUBLE: dse.value.dbl_v = 0; break;
+                      case dTSTAMP: dse.value.tstamp_v = 0; break;
+                      case dSTRING: dse.value.str_v = NULL; break;
+                      case dMAP:  dse.value.map_v = NULL; break;
+                      case dIDENT:  dse.value.str_v = NULL; break;
+                      case dWINDOW: dse.value.win_v = NULL; break;
+                      case dITERATOR: dse.value.iter_v = NULL; break;
+                      case dSEQUENCE: dse.value.seq_v = NULL; break;
                       }
                       index = al_size(variables);
                       (void) hm_put(vars2index, p, (void *)index, &dummy);
@@ -218,8 +219,28 @@ declaration:	  variabletype variablelist ';' {
                     }
                     ll_destroy(vblnames, NULL); vblnames = NULL;
                   }
+                | parameterizedtype PARAMTYPE variablelist ';' {
+                    char *p;
+                    void *dummy;
+                    long index;
+                    initDSE(&dse, $1, 0);
+                    while (ll_removeFirst(vblnames, (void **)&p)) {
+                      if (hm_containsKey(vars2index, p)) {
+                        comperror(p, ": variable previously defined");
+                        YYABORT;
+                      }
+                      dse.value.ev_v = NULL;
+                      index = al_size(variables);
+                      (void) hm_put(vars2index, p, (void *)index, &dummy);
+                      (void) hm_put(vars2strs, p, strdup($2), &dummy);
+                      (void) al_insert(variables, index, dse_duplicate(dse));
+                      (void) al_insert(index2vars, index, p);
+                    }
+                    free($2);
+                    ll_destroy(vblnames, NULL); vblnames = NULL;
+                }
                 ;
-basictype:	  INTDCL    { $$ = dINTEGER; }
+basictype:        INTDCL    { $$ = dINTEGER; }
                 | BOOLDCL   { $$ = dBOOLEAN; }
                 | REALDCL   { $$ = dDOUBLE; }
                 | STRINGDCL { $$ = dSTRING; }
@@ -230,6 +251,9 @@ constructedtype:  SEQDCL    { $$ = dSEQUENCE; }
                 | ITERDCL   { $$ = dITERATOR; }
                 | MAPDCL    { $$ = dMAP; }
                 | WINDOWDCL { $$ = dWINDOW; }
+                | EVENTDCL  { $$ = dEVENT; }
+                ;
+parameterizedtype: EVENTDCL  { $$ = dEVENT; }
                 ;
 variabletype:     basictype
                 | constructedtype
@@ -239,11 +263,11 @@ maptype:          basictype
                 | WINDOWDCL { $$ = dWINDOW; }
                 ;
 windowtype:       basictype
-                | SEQDCL	{ $$ = dSEQUENCE; }
-variablelist:	  variable
+                | SEQDCL  { $$ = dSEQUENCE; }
+variablelist:   variable
                 | variablelist ',' variable
                 ;
-variable:	  VAR {
+variable:   VAR {
                     if (! vblnames)
                       vblnames = ll_create();
                     ll_addLast(vblnames, (void *)$1);
@@ -252,19 +276,19 @@ variable:	  VAR {
 winconstr:        ROWS { $$ = dROWS; }
                 | SECS { $$ = dSECS; }
                 ;
-initialization:	  INITIALIZATION '{' statementlist '}' {
+initialization:   INITIALIZATION '{' statementlist '}' {
                     code(TRUE, STOP, NULL, "STOP", lineno);
                   }
                 ;
-behavior:	  BEHAVIOR { switchcode(); } '{' statementlist '}' {
+behavior:   BEHAVIOR { switchcode(); } '{' statementlist '}' {
                     code(TRUE, STOP, NULL, "STOP", lineno);
                     endcode();
                   }
                 ;
-statementlist:	  statement
+statementlist:    statement
                 | statementlist statement
                 ;
-statement:	  ';' {
+statement:    ';' {
                     $$ = (InstructionEntry *)0;
                   }
                 | expr ';'
@@ -327,11 +351,11 @@ body:             statement {
                       fprintf(stderr, "Starting code generation of body\n");
                   }
                 ;
-argumentlist:	  /* empty */			{ $$ = 0; }
-                | expr				{ $$ = 1; }
-                | argumentlist ',' expr		{ $$ = $1 + 1; }
+argumentlist:   /* empty */     { $$ = 0; }
+                | expr        { $$ = 1; }
+                | argumentlist ',' expr   { $$ = $1 + 1; }
                 ;
-assignment:	  VAR '=' expr {
+assignment:   VAR '=' expr {
                     void *value;
                     if (! hm_containsKey(vars2index, $1)) {
                       comperror($1, ": undefined variable");
@@ -347,50 +371,44 @@ assignment:	  VAR '=' expr {
                     $$ = $3;
                   }
                 ;
-pluseq:	          VAR PLUSEQ INTEGER {
+pluseq:           VAR PLUSEQ expr {
                     void *value;
                     if (! hm_containsKey(vars2index, $1)) {
                       comperror($1, ": undefined variable");
                       YYABORT;
                     }
-                    code(TRUE, constpush, NULL, "constpush", lineno);
-                    initDSE(&dse, dINTEGER, 0);
-                    dse.value.int_v = $3;
-                    code(FALSE, NULL, &dse, "integer literal", lineno);
                     code(TRUE, varpush, NULL, "varpush", lineno);
                     (void) hm_get(vars2index, $1, &value);
                     initDSE(&dse, dINTEGER, 0);
                     dse.value.int_v = (long long)value;
                     code(FALSE, STOP, &dse, "variable name", lineno);
+                    code(TRUE, pluseq, NULL, "pluseq", lineno);
                     free($1);
-                    $$ = code(TRUE, pluseq, NULL, "pluseq", lineno);
+                    $$ = $3;
                   }
                 ;
-minuseq:          VAR MINUSEQ INTEGER {
+minuseq:          VAR MINUSEQ expr {
                     void *value;
                     if (! hm_containsKey(vars2index, $1)) {
                       comperror($1, ": undefined variable");
                       YYABORT;
                     }
-                    code(TRUE, constpush, NULL, "constpush", lineno);
-                    initDSE(&dse, dINTEGER, 0);
-                    dse.value.int_v = $3;
-                    code(FALSE, NULL, &dse, "integer literal", lineno);
                     code(TRUE, varpush, NULL, "varpush", lineno);
                     (void) hm_get(vars2index, $1, &value);
                     initDSE(&dse, dINTEGER, 0);
                     dse.value.int_v = (long long)value;
                     code(FALSE, STOP, &dse, "variable name", lineno);
+                    code(TRUE, minuseq, NULL, "minuseq", lineno);
                     free($1);
-                    $$ = code(TRUE, minuseq, NULL, "minuseq", lineno);
+                    $$ = $3;
                   }
                 ;
-condition:	  '(' expr ')' {
+condition:    '(' expr ')' {
                     code(TRUE, STOP, NULL, "end condition", lineno);
                     $$ = $2;
                   }
                 ;
-while:		  WHILE {
+while:      WHILE {
                     InstructionEntry *spc;
                     if (iflog)
                       fprintf(stderr, "Starting code generation for while\n");
@@ -400,7 +418,7 @@ while:		  WHILE {
                     $$ = spc;
                   }
                 ;
-if:		  IF {
+if:     IF {
                     InstructionEntry *spc;
                     if (iflog)
                       fprintf(stderr, "Starting code generation for if\n");
@@ -411,17 +429,22 @@ if:		  IF {
                     $$ = spc;
                   }
                 ;
-else:		  ELSE {
+else:     ELSE {
                     code(TRUE, STOP, NULL, "STOP", lineno); $$ = progp;
                   }
                 ;
-begin:		  /* nothing */ { $$ = progp; }
+begin:      /* nothing */ { $$ = progp; }
                 ;
-end:		  /* nothing */ {
+end:      /* nothing */ {
                     code(TRUE, STOP, NULL, "STOP", lineno); $$ = progp;
                   }
                 ;
-expr:	          INTEGER {
+expr:           NULLVAL {
+                    code(TRUE, constpush, NULL, "constpush", lineno);
+                    initDSE(&dse, dNULL, 0);
+                    $$ = code(FALSE, NULL, &dse, "NULL", lineno);
+                  }
+                | INTEGER {
                     code(TRUE, constpush, NULL, "constpush", lineno);
                     initDSE(&dse, dINTEGER, 0);
                     dse.value.int_v = $1;
@@ -571,21 +594,21 @@ struct fpstruct {
 };
 
 static struct fpstruct functions[] = {
-    {"float", 1, 1, 0},		    /* real float(int) */
+    {"float", 1, 1, 0},       /* real float(int) */
     {"Identifier", 1, MAX_ARGS, 1},  /* identifier Identifier(arg[, ...]) */
-    {"lookup", 2, 2, 2},	    /* map.type lookup(map, identifier) */
-    {"average", 1, 1, 3},	    /* real average(window) */
-    {"stdDev", 1, 1, 4},	    /* real stdDev(window) */
-    {"currentTopic", 0, 0, 5},	    /* string currentTopic() */
-    {"Iterator", 1, 1, 6},  	    /* iterator Iterator(map|win|seq) */
-    {"next", 1, 1, 7},    	    /* identifier|data next(iterator) */
-    {"tstampNow", 0, 0, 8},	    /* tstamp tstampNow() */
-    {"tstampDelta", 3, 3, 9},	    /* tstamp tstampDelta(tstamp, int, bool) */
-    {"tstampDiff", 2, 2, 10},	    /* int tstampDiff(tstamp, tstamp) */
-    {"Timestamp", 1, 1, 11}, 	    /* tstamp Timestamp(string) */
-    {"dayInWeek", 1, 1, 12},	    /* int dayInWeek(tstamp) [Sun/0,Sat/6] */
-    {"hourInDay", 1, 1, 13},	    /* int hourInDay(tstamp) [0..23] */
-    {"dayInMonth", 1, 1, 14},	    /* int dayInMonth(tstamp) [1..31] */
+    {"lookup", 2, 2, 2},      /* map.type lookup(map, identifier) */
+    {"average", 1, 1, 3},     /* real average(window) */
+    {"stdDev", 1, 1, 4},      /* real stdDev(window) */
+    {"currentTopic", 0, 0, 5},      /* string currentTopic() */
+    {"Iterator", 1, 1, 6},        /* iterator Iterator(map|win|seq) */
+    {"next", 1, 1, 7},          /* identifier|data next(iterator) */
+    {"tstampNow", 0, 0, 8},     /* tstamp tstampNow() */
+    {"tstampDelta", 3, 3, 9},     /* tstamp tstampDelta(tstamp, int, bool) */
+    {"tstampDiff", 2, 2, 10},     /* int tstampDiff(tstamp, tstamp) */
+    {"Timestamp", 1, 1, 11},      /* tstamp Timestamp(string) */
+    {"dayInWeek", 1, 1, 12},      /* int dayInWeek(tstamp) [Sun/0,Sat/6] */
+    {"hourInDay", 1, 1, 13},      /* int hourInDay(tstamp) [0..23] */
+    {"dayInMonth", 1, 1, 14},     /* int dayInMonth(tstamp) [1..31] */
     {"Sequence", 0, MAX_ARGS, 15},   /* sequence Sequence([arg[, ...]]) */
     {"hasEntry", 2, 2, 16},          /* bool hasEntry(map, identifier) */
     {"hasNext", 1, 1, 17},           /* bool hasNext(iterator) */
@@ -605,14 +628,15 @@ static struct fpstruct functions[] = {
     {"winMax", 1, 1, 31},            /* real winMax(win) */
     {"floor", 1, 1, 32},             /* int floor(real) */
     {"mapSize", 1, 1, 33},           /* int mapSize(map) */
-    {"winElement", 2, 2, 34}         /* win.type winElement(win, int) */
+    {"winElement", 2, 2, 34},        /* win.type winElement(win, int) */
+    {"mapMax", 2, 2, 35}              /* ident mapMax(map) */
 };
 #define NFUNCTIONS (sizeof(functions)/sizeof(struct fpstruct))
 
 static struct fpstruct procedures[] = {
     {"topOfHeap", 0, 0, 0},     /* void topOfHeap() */
-    {"insert", 3, 3, 1},	/* void insert(map, ident, map.type) */
-    {"remove", 2, 2, 2},	/* void remove(map, ident) */
+    {"insert", 3, 3, 1},  /* void insert(map, ident, map.type) */
+    {"remove", 2, 2, 2},  /* void remove(map, ident) */
     {"send", 1, MAX_ARGS, 3},   /* void send(arg, ...) */
     {"append", 2, MAX_ARGS, 4}, /* void append(window, window.dtype[, tstamp]) */
     /* if wtype == SECS, must provide tstamp */
@@ -642,6 +666,8 @@ static struct keyval keywords[] = {
     {"map", MAPDCL},
     {"window", WINDOWDCL},
     {"identifier", IDENTDCL},
+    {"event", EVENTDCL},
+    {"NULL", NULLVAL},
     {"if", IF},
     {"else", ELSE},
     {"while", WHILE},
@@ -678,17 +704,17 @@ top:
     while ((c = get_ch(&ap)) == ' ' || c == '\t' || c == '\n')
         if (c == '\n')
             lineno++;
-    if (c == '#') { 		/* comment to end of line */
-        while ((c = get_ch(&ap)) != '\n' && c != EOF)
-            ;			/* consume rest of line */
-        if (c == '\n') {
+    if (c == '#') {     /* comment to end of line or next # */
+        while ((c = get_ch(&ap)) != '\n' && c != '#' && c != EOF)
+            ; /* consume rest of line */
+        if (c == '\n' || c == '#') {
             lineno++;
             goto top;
         }
     }
     if (c == EOF)
         return 0;
-    if (c == '.' || isdigit(c)) {	/* a number */
+    if (c == '.' || isdigit(c)) { /* a number */
         char buf[128], *p;
         double d;
         long l;
@@ -714,7 +740,7 @@ top:
         }
         return retval;
     }
-    if (c == '@') {	/* timestamp literal */
+    if (c == '@') { /* timestamp literal */
         char buf[20], *p;
         int n = 16;
         p = buf;
@@ -782,7 +808,7 @@ top:
         else
             return VAR;
     }
-    if (c == '\'') {		/* quoted string */
+    if (c == '\'') {    /* quoted string */
         char sbuf[100], *p;
         for (p = sbuf; (c = get_ch(&ap)) != '\''; p++) {
             if (c == '\n' || c == EOF)
@@ -796,6 +822,28 @@ top:
         *p = '\0';
         a_lval.strv = strdup(sbuf);
         return STRING;
+    }
+    if (c == '<') { /* parameterized type */
+      char d = get_ch(&ap);
+      if (isalpha(d)) { /* if paramtype, next should be an alpha */
+        unget_ch(d, &ap);
+        char sbuf[100], *p;
+        for (p = sbuf; (c = get_ch(&ap)) != '>'; p++) {
+            if (c == '\n' || c == EOF)
+                comperror("missing >", NULL);
+            if (p >= sbuf + sizeof(sbuf) - 1) {
+                *p = '\0';
+                comperror("param too long or space after < needed", sbuf);
+            }
+            *p = backslash(c);
+          }
+          *p = '\0';
+          a_lval.strv = strdup(sbuf);
+          return PARAMTYPE;
+      } 
+      else { /* otherwise it's an expression */
+        unget_ch(d, &ap);
+      }
     }
     c = backslash(c);
     switch (c) {
@@ -818,12 +866,15 @@ top:
     case '\n':
         lineno++;
         goto top;
+    case ';':
+    case '{':
+    case '}': lineno++;
     default:
         return c;
     }
 }
 
-int backslash(int c) {		/* get next character with \'s interpreted */
+int backslash(int c) {    /* get next character with \'s interpreted */
     static char transtab[] = "b\bf\fn\nr\rt\t";
     if (c != '\\')
         return c;
@@ -845,7 +896,7 @@ void field_split(char *token, char *variable, char *field) {
     strcpy(field, (*p == '.') ? ++p : p);
 }
 
-int follow(int expect, int ifyes, int ifno) {	/* look ahead for >=, ... */
+int follow(int expect, int ifyes, int ifno) { /* look ahead for >=, ... */
     int c = get_ch(&ap);
     if (c == expect)
         return ifyes;
@@ -853,7 +904,7 @@ int follow(int expect, int ifyes, int ifno) {	/* look ahead for >=, ... */
     return ifno;
 }
 
-int a_error(char *s) {		/* report compile-time error */
+int a_error(char *s) {    /* report compile-time error */
     comperror(s, (char *)0);
     return 1;
 }
@@ -908,7 +959,7 @@ void execerror(int lineno, char *s, char *t) { /* recover from run-time error */
     longjmp(*begin, -2);
 }
 
-void comperror(char *s, char *t) {	/* recover from compile-time error */
+void comperror(char *s, char *t) {  /* recover from compile-time error */
     char buf[1024];
     jmp_buf *begin = (jmp_buf *)pthread_getspecific(jmpbuf_key);
     warning(buf, lineno, s, t);

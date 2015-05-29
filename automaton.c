@@ -179,7 +179,7 @@ static void *thread_func(void *args) {
         hm_remove(self->topics, keys[i], &datum);
     }
     free(keys);
-    hm_destroy(self->topics, NULL);	/* destroy the hash table */
+    hm_destroy(self->topics, NULL); /* destroy the hash table */
 
     /*
      * now release all queued events
@@ -187,9 +187,10 @@ static void *thread_func(void *args) {
 
     debugf("Releasing all queued events\n");
     while (ll_removeFirst(self->events, (void **)&current)) {
-        ev_release(current);		/* decrement ref count */
+
+        ev_release(current);        /* decrement ref count */
     }
-    ll_destroy(self->events, NULL);	/* delete the linked list */
+    ll_destroy(self->events, NULL); /* delete the linked list */
 
     /*
      * now return storage associated with variable->value mapping
@@ -207,14 +208,14 @@ static void *thread_func(void *args) {
         if (dx->type == dEVENT)
             ev_release(dx->value.ev_v);
         else if (dx->type == dSEQUENCE || dx->type == dWINDOW)
-            ;	/* assume seq and win inserted into map */
+            ;   /* assume seq and win inserted into map */
         else
             freeDSE(dx);
-        dse_free(dx);			/* return the storage */
+        dse_free(dx);           /* return the storage */
         free(s);
     }
     debugf("Destroying the arraylists\n");
-    al_destroy(self->variables, NULL);	/* destroy the array list */
+    al_destroy(self->variables, NULL);  /* destroy the array list */
     al_destroy(self->index2vars, NULL); /* destroy the array list */
 
     /*
@@ -302,12 +303,12 @@ Automaton *au_create(char *program, RpcConnection rpc, char *ebuf) {
             char buf[20];
             jmp_buf begin;
             pthread_mutex_lock(&compile_lock);
-            if (!setjmp(begin)) {	/* not here because of a longjmp */
+            if (!setjmp(begin)) {   /* not here because of a longjmp */
                 (void)pthread_setspecific(jmpbuf_key, (void *)begin);
                 ap_init(program);
                 a_init();
                 initcode();
-                if (! a_parse()) {	/* successful compilation */
+                if (! a_parse()) {  /* successful compilation */
                     size_t N;
                     Iterator *it;
                     N = initSize * sizeof(InstructionEntry);
@@ -320,7 +321,7 @@ Automaton *au_create(char *program, RpcConnection rpc, char *ebuf) {
                     au->behav = (InstructionEntry *)malloc(N);
                     memcpy(au->behav, behavior, N);
                     au->variables = variables;
-		    au->index2vars = index2vars;
+                    au->index2vars = index2vars;
                     au->topics = topics;
                     sprintf(buf, "%08lx", au->id);
                     (void) tshm_put(automatons, buf, au, &dummy);
@@ -381,10 +382,10 @@ int au_destroy(unsigned long id) {
 void au_publish(unsigned long id, Event *event) {
     Automaton *au = au_au(id);
     if (! au)
-        return;	/* probably need to ev_release event here */
+        return; /* probably need to ev_release event here */
     pthread_mutex_lock(&(au->lock));
     if (! au->must_exit && ! au->has_exited) {
-        (void)ll_addFirst(au->events, event);
+        (void)ll_addLast(au->events, event); /* Add to tail of eventQ */
         pthread_cond_signal(&(au->cond));
     }
     pthread_mutex_unlock(&(au->lock));
