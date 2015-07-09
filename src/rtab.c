@@ -13,7 +13,7 @@
 #include "util.h"
 #include "typetable.h"
 #include "sqlstmts.h"
-#include "linkedlist.h"
+#include "adts/linkedlist.h"
 
 #include <stdio.h>
 #include <string.h>

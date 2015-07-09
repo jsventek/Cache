@@ -6,7 +6,7 @@
  */
 
 #include "event.h"
-#include "srpc.h"
+#include "srpc/srpc.h"
 
 typedef struct automaton Automaton;
 

@@ -50,7 +50,7 @@
 #include "config.h"
 #include "util.h"
 #include "rtab.h"
-#include "srpc.h"
+#include "srpc/srpc.h"
 #include <pthread.h>
 #include <stdio.h>
 #include <string.h>

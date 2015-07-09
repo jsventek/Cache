@@ -6,7 +6,7 @@
 #include "util.h"
 #include "timestamp.h"
 #include "sqlstmts.h"
-#include "linkedlist.h"
+#include "adts/linkedlist.h"
 #include "typetable.h"
 
 extern int yylex();

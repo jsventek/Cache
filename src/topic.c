@@ -4,8 +4,8 @@
 #include "topic.h"
 #include "event.h"
 #include "automaton.h"
-#include "tshashmap.h"
-#include "linkedlist.h"
+#include "adts/tshashmap.h"
+#include "adts/linkedlist.h"
 #include "dataStackEntry.h"
 #include <pthread.h>
 #include <string.h>

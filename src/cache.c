@@ -11,7 +11,7 @@
 #include "util.h"
 #include "hwdb.h"
 #include "rtab.h"
-#include "srpc.h"
+#include "srpc/srpc.h"
 #include "mb.h"
 #include "timestamp.h"
 #include <stdio.h>

@@ -33,7 +33,7 @@
 #define _RTAB_H_
 
 #include "config.h"
-#include "srpc.h"
+#include "srpc/srpc.h"
 
 /* Rtab Status flags */
 #define RTAB_MSG_SUCCESS 0

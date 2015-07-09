@@ -9,7 +9,7 @@
 #include "nodecrawler.h"
 
 #include "util.h"
-#include "linkedlist.h"
+#include "adts/linkedlist.h"
 #include "rtab.h"
 #include "sqlstmts.h"
 #include "table.h"

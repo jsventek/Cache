@@ -29,33 +29,41 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef _HWDB_H_
-#define _HWDB_H_
+/*
+ * table.h - define data structure for tables
+ */
 
-#include "rtab.h"
-#include "pubsub.h"
-#include "srpc.h"
-#include "table.h"
-#include "automaton.h"
+#ifndef _TABLE_H_
+#define _TABLE_H_
+
+#include "node.h"
+#include "adts/linkedlist.h"
 #include "sqlstmts.h"
+#include "rtab.h"
+#include "srpc/srpc.h"
+#include <pthread.h>
 
-#define SUBSCRIPTION 1
-#define REGISTRATION 2
+typedef struct table {
+    short tabletype;		/* type of table (persistent or not) */
+    short primary_column;	/* primary column # for persistent table */
+    int ncols;			/* number of columns */
+    char **colname;		/* names of columns */
+    int **coltype;		/* types of columns */
+    struct node *oldest;	/* oldest node in the table */
+    struct node *newest;	/* newest node in the table */
+    long count;			/* number of nodes in the table */
+    pthread_mutex_t tb_mutex;	/* mutex for protecting the table */
+} Table;
 
-typedef struct callBackInfo {
-    short type, ifdisconnect;	/* value of SUBSCRIPTION or REGISTRATION */
-    char *str;                  /* return value to send, if any */
-    union {
-        long id;
-        Automaton *au;
-    } u;
-} CallBackInfo;
+Table *table_new(int ncols, char **colname, int **coltype);
+int table_colnames_match(Table *tn, sqlselect *select);
+void table_lock(Table *tn);
+void table_unlock(Table *tn);
+void table_store_select_cols(Table *tn, sqlselect *select, Rtab *results);
+void table_extract_relevant_types(Table *tn, Rtab *results);
+int table_lookup_colindex(Table *tn, char *colname);
+void table_tabletype(Table *tn, short tabletype, short primary_column);
+int table_persistent(Table *tn);
+int table_key(Table *tn);
 
-int hwdb_init(int usesRPC);
-Rtab *hwdb_exec_query(char *query, int isreadonly);
-int hwdb_send_event(Automaton *au, char *buf, int ifdisconnect);
-Table *hwdb_table_lookup(char *name);
-void hwdb_queue_cleanup(CallBackInfo *info);
-int hwdb_insert(sqlinsert *insert);
-
-#endif /* _HWDB_H_ */
+#endif /* _TABLE_H_ */

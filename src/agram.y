@@ -30,9 +30,9 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "linkedlist.h"
-#include "hashmap.h"
-#include "arraylist.h"
+#include "adts/linkedlist.h"
+#include "adts/hashmap.h"
+#include "adts/arraylist.h"
 #include "code.h"
 #include "dataStackEntry.h"
 #include "machineContext.h"

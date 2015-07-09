@@ -11,7 +11,7 @@
 #include "typetable.h"
 #include "sqlstmts.h"
 #include "pubsub.h"
-#include "srpc.h"
+#include "srpc/srpc.h"
 
 #include <string.h>
 #include <pthread.h>

@@ -32,8 +32,8 @@
 #ifndef _DATASTACKENTRY_H_
 #define _DATASTACKENTRY_H_
 
-#include "hashmap.h"
-#include "linkedlist.h"
+#include "adts/hashmap.h"
+#include "adts/linkedlist.h"
 
 /*
  * the data stack for the event processor is an array of the following structs

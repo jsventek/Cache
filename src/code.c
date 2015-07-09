@@ -34,7 +34,7 @@
  */
 
 #include "dataStackEntry.h"
-#include "hashmap.h"
+#include "adts/hashmap.h"
 #include "code.h"
 #include "event.h"
 #include "topic.h"

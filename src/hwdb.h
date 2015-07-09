@@ -29,50 +29,33 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef _MACHINECONTEXT_H_
-#define _MACHINECONTEXT_H_
+#ifndef _HWDB_H_
+#define _HWDB_H_
 
-/*
- * execution context for automaton virtual machine
- */
-
-#include "dataStackEntry.h"
-#include "hashmap.h"
-#include "arraylist.h"
-#include "stack.h"
+#include "rtab.h"
+#include "pubsub.h"
+#include "srpc/srpc.h"
+#include "table.h"
 #include "automaton.h"
+#include "sqlstmts.h"
 
-typedef struct instructionEntry InstructionEntry;
+#define SUBSCRIPTION 1
+#define REGISTRATION 2
 
-typedef struct machineContext {
-    ArrayList *variables;
-    ArrayList *index2vars;
-    Stack *stack;
-    char *currentTopic;
-    Automaton *au;
-    InstructionEntry *pc;
-} MachineContext;
-
-/*
- * instructions for the stack machine are instances of the following union
- */
-
-typedef void (*Inst)(MachineContext *mc);  /* actual machine instruction */
-#define STOP (Inst)0
-
-#define FUNC 1
-#define DATA 2
-#define PNTR 3
-
-struct instructionEntry {
-    int type;
+typedef struct callBackInfo {
+    short type, ifdisconnect;	/* value of SUBSCRIPTION or REGISTRATION */
+    char *str;                  /* return value to send, if any */
     union {
-        Inst op;
-        DataStackEntry immediate;
-        int offset;			/* offset from current PC */
+        long id;
+        Automaton *au;
     } u;
-    char *label;
-    int lineno;				/* corresponding source line no */
-};
+} CallBackInfo;
 
-#endif /* _MACHINECONTEXT_H_ */
+int hwdb_init(int usesRPC);
+Rtab *hwdb_exec_query(char *query, int isreadonly);
+int hwdb_send_event(Automaton *au, char *buf, int ifdisconnect);
+Table *hwdb_table_lookup(char *name);
+void hwdb_queue_cleanup(CallBackInfo *info);
+int hwdb_insert(sqlinsert *insert);
+
+#endif /* _HWDB_H_ */

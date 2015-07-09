@@ -12,8 +12,8 @@
 
 #include "sqlstmts.h"
 #include "rtab.h"
-#include "linkedlist.h"
-#include "srpc.h"
+#include "adts/linkedlist.h"
+#include "srpc/srpc.h"
 #include "table.h"
 #include "node.h"
 

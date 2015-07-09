@@ -34,9 +34,9 @@
 
 #include "automaton.h"
 #include "topic.h"
-#include "linkedlist.h"
-#include "tshashmap.h"
-#include "arraylist.h"
+#include "adts/linkedlist.h"
+#include "adts/tshashmap.h"
+#include "adts/arraylist.h"
 #include "machineContext.h"
 #include "code.h"
 #include "stack.h"
@@ -50,7 +50,7 @@
 #include <setjmp.h>
 #include <string.h>
 #include <time.h>
-#include "srpc.h"
+#include "srpc/srpc.h"
 #include "logdefs.h"
 
 #define DEFAULT_HASH_TABLE_SIZE 20

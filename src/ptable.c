@@ -2,7 +2,7 @@
  * PTable ADT implementation
  */
 #include "ptable.h"
-#include "tshashmap.h"
+#include "adts/tshashmap.h"
 #include "dataStackEntry.h"
 #include "hwdb.h"
 #include "table.h"

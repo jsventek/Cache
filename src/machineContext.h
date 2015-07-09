@@ -29,40 +29,50 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef _A_GLOBALS_H_
-#define _A_GLOBALS_H_
+#ifndef _MACHINECONTEXT_H_
+#define _MACHINECONTEXT_H_
 
 /*
- * externs and struct definitions shared between the parser, the
- * stack machine and the automaton class
+ * execution context for automaton virtual machine
  */
 
-#include "tshashmap.h"
-#include "hashmap.h"
-#include "arraylist.h"
-#include "machineContext.h"
-#include <pthread.h>
+#include "dataStackEntry.h"
+#include "adts/hashmap.h"
+#include "adts/arraylist.h"
+#include "stack.h"
+#include "automaton.h"
 
-#define MAX_ARGS 20
+typedef struct instructionEntry InstructionEntry;
 
-struct fpargs {
-    unsigned int min;	/* minimum number of arguments for builtin */
-    unsigned int max;   /* maximum number of arguments for builtin */
-    unsigned int index;	/* index used for switch statements */
+typedef struct machineContext {
+    ArrayList *variables;
+    ArrayList *index2vars;
+    Stack *stack;
+    char *currentTopic;
+    Automaton *au;
+    InstructionEntry *pc;
+} MachineContext;
+
+/*
+ * instructions for the stack machine are instances of the following union
+ */
+
+typedef void (*Inst)(MachineContext *mc);  /* actual machine instruction */
+#define STOP (Inst)0
+
+#define FUNC 1
+#define DATA 2
+#define PNTR 3
+
+struct instructionEntry {
+    int type;
+    union {
+        Inst op;
+        DataStackEntry immediate;
+        int offset;			/* offset from current PC */
+    } u;
+    char *label;
+    int lineno;				/* corresponding source line no */
 };
 
-/* declared in agram.y */
-extern ArrayList *variables;
-extern ArrayList *index2vars;
-extern HashMap *topics;
-extern HashMap *builtins;
-extern char *progname;
-/* declared in code.c */
-extern InstructionEntry *progp, *startp, *initialization, *behavior;
-extern int initSize, behavSize;
-extern int iflog;
-/* declared in automaton.c */
-extern pthread_key_t jmpbuf_key;
-extern pthread_key_t execerr_key;
-
-#endif /* _A_GLOBALS_H_ */
+#endif /* _MACHINECONTEXT_H_ */

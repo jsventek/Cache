@@ -29,24 +29,40 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef _PUBSUB_H_
-#define _PUBSUB_H_
+#ifndef _A_GLOBALS_H_
+#define _A_GLOBALS_H_
 
-#include "srpc.h"
+/*
+ * externs and struct definitions shared between the parser, the
+ * stack machine and the automaton class
+ */
 
-typedef struct subscription {
-    char *queryname;
-    char *ipaddr;
-    char *port;
-    char *service;
-    char *tablename;
-    RpcConnection rpc;
-} Subscription;
+#include "adts/tshashmap.h"
+#include "adts/hashmap.h"
+#include "adts/arraylist.h"
+#include "machineContext.h"
+#include <pthread.h>
 
-int ps_create(long id, Subscription *s);
-void ps_delete(long id);
-Subscription *ps_id2sub(long id);
-int ps_sub2id(Subscription *s, long *id);
-int ps_exists(char *qname, char *ipaddr, char *port, char *service);
+#define MAX_ARGS 20
 
-#endif /* _PUBSUB_H_ */
+struct fpargs {
+    unsigned int min;	/* minimum number of arguments for builtin */
+    unsigned int max;   /* maximum number of arguments for builtin */
+    unsigned int index;	/* index used for switch statements */
+};
+
+/* declared in agram.y */
+extern ArrayList *variables;
+extern ArrayList *index2vars;
+extern HashMap *topics;
+extern HashMap *builtins;
+extern char *progname;
+/* declared in code.c */
+extern InstructionEntry *progp, *startp, *initialization, *behavior;
+extern int initSize, behavSize;
+extern int iflog;
+/* declared in automaton.c */
+extern pthread_key_t jmpbuf_key;
+extern pthread_key_t execerr_key;
+
+#endif /* _A_GLOBALS_H_ */

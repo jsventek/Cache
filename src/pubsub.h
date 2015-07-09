@@ -29,41 +29,24 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-/*
- * table.h - define data structure for tables
- */
+#ifndef _PUBSUB_H_
+#define _PUBSUB_H_
 
-#ifndef _TABLE_H_
-#define _TABLE_H_
+#include "srpc/srpc.h"
 
-#include "node.h"
-#include "linkedlist.h"
-#include "sqlstmts.h"
-#include "rtab.h"
-#include "srpc.h"
-#include <pthread.h>
+typedef struct subscription {
+    char *queryname;
+    char *ipaddr;
+    char *port;
+    char *service;
+    char *tablename;
+    RpcConnection rpc;
+} Subscription;
 
-typedef struct table {
-    short tabletype;		/* type of table (persistent or not) */
-    short primary_column;	/* primary column # for persistent table */
-    int ncols;			/* number of columns */
-    char **colname;		/* names of columns */
-    int **coltype;		/* types of columns */
-    struct node *oldest;	/* oldest node in the table */
-    struct node *newest;	/* newest node in the table */
-    long count;			/* number of nodes in the table */
-    pthread_mutex_t tb_mutex;	/* mutex for protecting the table */
-} Table;
+int ps_create(long id, Subscription *s);
+void ps_delete(long id);
+Subscription *ps_id2sub(long id);
+int ps_sub2id(Subscription *s, long *id);
+int ps_exists(char *qname, char *ipaddr, char *port, char *service);
 
-Table *table_new(int ncols, char **colname, int **coltype);
-int table_colnames_match(Table *tn, sqlselect *select);
-void table_lock(Table *tn);
-void table_unlock(Table *tn);
-void table_store_select_cols(Table *tn, sqlselect *select, Rtab *results);
-void table_extract_relevant_types(Table *tn, Rtab *results);
-int table_lookup_colindex(Table *tn, char *colname);
-void table_tabletype(Table *tn, short tabletype, short primary_column);
-int table_persistent(Table *tn);
-int table_key(Table *tn);
-
-#endif /* _TABLE_H_ */
+#endif /* _PUBSUB_H_ */
