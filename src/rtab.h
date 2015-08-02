@@ -52,6 +52,7 @@
 #define RTAB_MSG_UPDATE_FAILED 13
 #define RTAB_MSG_REGISTER_FAILED 14
 #define RTAB_MSG_UNREGISTER_FAILED 15
+#define RTAB_MSG_DELETE_FAILED 16
 
 typedef struct rrow {
     char **cols;		/* All data stored as strings */

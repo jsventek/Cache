@@ -53,6 +53,36 @@ int ptab_hasEntry(char *name, char *ident) {
     return result;
 }
 
+void ptab_delete(char* name, char* ident) {
+    Table *tn = hwdb_table_lookup(name);
+    Nodecrawler *nc;
+    table_lock(tn);
+    Node* n;
+    nc = nodecrawler_new(tn->oldest, tn->newest);
+    if ((n = nodecrawler_find_value(nc, tn->primary_column, ident))) {
+        /* remove n from list */
+        if (tn->oldest == tn->newest) { /* == n */
+            tn->oldest = NULL;
+            tn->newest = NULL;
+        } else if (tn->oldest == n) {
+            tn->oldest = n->next;
+            n->next->prev = NULL;
+        } else if (tn->newest == n) {
+            tn->newest = n->prev;
+            n->prev->next = NULL;
+        } else {
+            n->prev->next = n->next;
+            n->next->prev = n->prev;
+        }
+        free(n->tuple);
+        free(n);
+        --tn->count;
+
+    }
+    nodecrawler_free(nc);
+    table_unlock(tn);
+}
+
 GAPLSequence *ptab_lookup(char *name, char *ident) {
     GAPLSequence *ans = NULL;
     Table *tn = hwdb_table_lookup(name);

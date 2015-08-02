@@ -121,6 +121,21 @@ void reset_statement() {
         stmt.type = 0;
         break;
 
+    case SQL_TYPE_DELETE:
+        free(stmt.sql.update.tablename);
+        if (stmt.sql.update.nfilters > 0) {
+            for (i = 0; i < stmt.sql.update.nfilters; i++) {
+                free(stmt.sql.update.filters[i]->varname);
+                free(stmt.sql.update.filters[i]);
+            }
+            free(stmt.sql.update.filters);
+        }
+        stmt.sql.update.nfilters = 0;
+        stmt.sql.update.filters = NULL;
+        stmt.sql.update.filtertype = 0;
+        stmt.type = 0;
+        break;
+
     case SQL_TYPE_CREATE:
         free(stmt.sql.create.tablename);
         if (stmt.sql.create.ncols > 0) {
@@ -305,7 +320,6 @@ void sql_print() {
     case SQL_TYPE_UPDATE:
         printf("Update statement\n");
         printf("tablename: %s\n", stmt.sql.update.tablename);
-
         break;
 
     case SQL_TYPE_INSERT:

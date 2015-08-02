@@ -40,6 +40,8 @@ static void signal_handler(int signum) {
     sig_received = signum;
     must_exit++;
     rpc_shutdown();
+    fflush(stdout);
+    exit(1);
 }
 
 static void loadfile(char *file, int log, int isreadonly) {

@@ -1975,9 +1975,14 @@ void procedure(MachineContext *mc) {
     }
     case 2: {		/* void remove(map, ident) */
         /* args[0] is map, args[1] is ident */
-        if (args[0].type != dMAP || args[1].type != dIDENT)
+        if (args[0].type == dMAP && args[1].type == dIDENT) {
+            doremove(args+0, args[1].value.str_v);
+        /* args[0] is ptable, args[1] is ident */
+        } else if (args[0].type == dPTABLE && args[1].type == dIDENT) {
+            ptab_delete(args[0].value.str_v, args[1].value.str_v);
+        } else {
             execerror(mc->pc->lineno, "incorrect data types in call to remove()", NULL);
-        doremove(args+0, args[1].value.str_v);
+        }
         if (!(args[1].flags & NOTASSIGN))
             freeDSE(args+1);
         break;

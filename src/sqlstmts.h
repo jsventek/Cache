@@ -46,6 +46,7 @@
 #define SQL_TYPE_UPDATE 5
 #define SQL_TYPE_REGISTER 6
 #define SQL_TYPE_UNREGISTER 7
+#define SQL_TYPE_DELETE 8
 
 #define SQL_WINTYPE_NONE 0
 #define SQL_WINTYPE_TIME 1
@@ -167,6 +168,13 @@ typedef struct sqlinsert {
     short transform;
 } sqlinsert;
 
+typedef struct sqldelete {
+    char* tablename;
+    int nfilters;
+    sqlfilter **filters;
+    int filtertype;
+} sqldelete;
+
 typedef struct sqlregister {
     char *automaton;
     char *ipaddr;
@@ -186,6 +194,7 @@ typedef struct sqlstmt {
         sqlcreate create;
         sqlinsert insert;
         sqlupdate update;
+        sqldelete delete;
         sqlregister regist;
         sqlunregister unregist;
     } sql;

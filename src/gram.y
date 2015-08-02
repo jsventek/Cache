@@ -91,6 +91,7 @@ static long dummyLong;
 %token PERSISTENTTABLETK
 %token GROUP
 %token UPDATE SET ADD SUB ON DUPLICATETK
+%token DELETE
 %token CONTAINS NOTCONTAINS
 
 %type <string> tstamp_expr
@@ -186,6 +187,18 @@ sqlStmt:      selectStmt {
                 colvals=NULL;
                 ll_destroy(coltypes, NULL);
                 coltypes=NULL;
+              }
+            | deleteStmt {
+                debugvf("Delete statement.\n");
+                stmt.type = SQL_TYPE_DELETE;
+                stmt.sql.delete.tablename = tablename;
+                if (flist) {
+                  stmt.sql.delete.nfilters = (int)ll_size(flist);
+                  stmt.sql.delete.filters = (sqlfilter **) ll_toArray(flist, &dummyLong);
+                  stmt.sql.delete.filtertype = filtertype;
+                  ll_destroy(flist, NULL);
+                  flist = NULL;
+                }
               }
             | updateStmt {
                 debugvf("Update statement.\n");
@@ -316,6 +329,11 @@ col:          WORD {
 
 all:          STAR {
                 debugvf("Select *\n");
+                /* no accumulated list possible with STAR */
+                if (clist) {
+                    ll_destroy(clist, NULL);
+                    clist=NULL;
+                }
                 if (!clist)
                   clist = ll_create();
                 (void)ll_add(clist, strdup("*"));
@@ -759,6 +777,11 @@ insertStmt:   INSERT INTO WORD VALUES OPENBRKT valList CLOSEBRKT {
                 tablename = $3;
                 transform = 1;
               } 
+            ;
+deleteStmt:   DELETE FROM WORD WHERE filterList {
+                debugvf("Delete records from %s\n", (char*)$3);
+                tablename = $3;
+              }
             ;
 
 updateStmt:   UPDATE WORD SET pairList WHERE filterList {

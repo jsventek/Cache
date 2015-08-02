@@ -142,6 +142,46 @@ int itab_update_table(Indextable *itab, sqlupdate *update) {
     return 1;
 }
 
+int itab_delete_rows(Indextable *itab, sqldelete *delete) {
+    Table *tn;
+    Nodecrawler *nc;
+    int stat;
+    debugvf("Itab: updating table\n");
+    itab_lock(itab);
+    stat = hm_get(itab->ht, delete->tablename, (void **)&tn);
+    itab_unlock(itab);
+    if (! stat) {
+        errorf("Table does not exist. Doing nothing.\n");
+        return 0;
+    }
+    if (! table_persistent(tn)) {
+        errorf("Only persistent tables support delete.\n");
+        return 0;
+    }
+
+    /* Lock table */
+    table_lock(tn);
+    nc = nodecrawler_new(tn->oldest, tn->newest);
+
+    nodecrawler_apply_filter(nc, tn,
+                             delete->nfilters, delete->filters, delete->filtertype);
+
+    nodecrawler_delete_rows(nc, tn, delete);
+
+    /* Reset dropped markers */
+    nodecrawler_reset_all_dropped(nc);
+    nodecrawler_free(nc);
+
+    nc = nodecrawler_new(tn->oldest, tn->newest);
+    nodecrawler_reset_all_dropped(nc);
+    nodecrawler_free(nc);
+
+    /* Unlock table */
+    table_unlock(tn);
+
+    return 1;
+}
+
 
 int itab_is_compatible(Indextable *itab, char *tablename, int ncols, int **coltypes) {
     Table *tn;

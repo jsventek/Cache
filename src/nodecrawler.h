@@ -69,6 +69,8 @@ void nodecrawler_reset_all_dropped(Nodecrawler *nc);
 
 void nodecrawler_update_cols(Nodecrawler *nc, Table *tn, sqlupdate *update);
 
+void nodecrawler_delete_rows(Nodecrawler *nc, Table *tn, sqldelete *delete);
+
 Node *nodecrawler_find_value(Nodecrawler *nc, int key, char *value);
 
 #endif

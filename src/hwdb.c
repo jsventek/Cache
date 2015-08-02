@@ -142,6 +142,13 @@ Rtab *hwdb_exec_stmt(int isreadonly) {
             results = rtab_new_msg(RTAB_MSG_SUCCESS, NULL);
         }
         break;
+    case SQL_TYPE_DELETE:
+        if (isreadonly || !hwdb_delete(&stmt.sql.delete)) {
+            results = rtab_new_msg(RTAB_MSG_DELETE_FAILED, NULL);
+        } else {
+            results = rtab_new_msg(RTAB_MSG_SUCCESS, NULL);
+        }
+        break;
     case SQL_SHOW_TABLES:
         results = hwdb_showtables();
         break;
@@ -214,6 +221,20 @@ int hwdb_update(sqlupdate *update) {
 
     if (itab_update_table(itab, update)) {
         /* hwdb_publish(update->tablename); *//* Notify subscribers */
+        return 1;
+    }
+    return 0;
+}
+
+int hwdb_delete(sqldelete *delete) {
+    debugf("HWDB: Executing DELETE:\n");
+    /* Check table exists */
+    if (!itab_table_exists(itab, delete->tablename)) {
+        errorf("HWDB: %s no such table\n", delete->tablename);
+        return 0;
+    }
+
+    if (itab_delete_rows(itab, delete)) {
         return 1;
     }
     return 0;
