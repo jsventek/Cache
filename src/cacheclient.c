@@ -82,7 +82,7 @@ int main(int argc, char *argv[]) {
     host = HWDB_SERVER_ADDR;
     port = HWDB_SERVER_PORT;
     service = "HWDB";
-    log = 0;
+    log = 1;
     ifbulk = 0;
     for (i = 1; i < argc; ) {
         if ((j = i + 1) == argc) {
