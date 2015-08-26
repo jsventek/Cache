@@ -224,6 +224,11 @@ sqlStmt:      selectStmt {
                 debugvf("Show tables.\n");
                 stmt.type = SQL_SHOW_TABLES;
               }
+            | SHOW TABLETK WORD {
+                debugvf("Show table.\n");
+                stmt.sql.meta.table = $3;
+                stmt.type = SQL_TABLE_META;
+              }
             | REGISTER QUOTEDSTRING IPADDR NUMBER WORD {
                 debugvf("Register statement: automaton: %s\nip:port:service: %s:%s:%s\n", 
                         (char*)$2,(char*)$3,(char*)$4,(char*)$5);
