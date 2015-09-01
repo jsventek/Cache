@@ -72,6 +72,7 @@ static char **gargv;		/* global argument list */
 static int gargc;		/* global argument count */
 HashMap *vars2index = NULL;
 HashMap *topics = NULL;
+HashMap *sourcefilters = NULL;
 HashMap *builtins = NULL;
 ArrayList *variables;
 ArrayList *index2vars;
@@ -157,7 +158,29 @@ subscription:	  SUBSCRIBE VAR TO VAR ';' {
                     index = al_size(variables);
                     (void) hm_put(vars2index, $2, (void *)index, &dummy);
                     (void) hm_put(topics, $4, (void *)index, &dummy);
+                    (void) hm_put(sourcefilters, $4, (void *)index, (void*)0);
                     (void) hm_put(vars2strs, $2, $4, &dummy);
+                    initDSE(&dse, dEVENT, NOTASSIGN);
+                    dse.value.ev_v = NULL;
+                    (void) al_insert(variables, index, dse_duplicate(dse));
+                    (void) al_insert(index2vars, index, $2);
+                  }
+                | SUBSCRIBE VAR TO REMOTE VAR ';' {
+                    void *dummy;
+                    long index;
+                    if (! top_exist($5)) {
+                      comperror($5, ": non-existent topic");
+                      YYABORT;
+                    }
+                    if (hm_containsKey(vars2index, $2)) {
+                      comperror($2, ": variable already defined");
+                      YYABORT;
+                    }
+                    index = al_size(variables);
+                    (void) hm_put(vars2index, $2, (void *)index, &dummy);
+                    (void) hm_put(topics, $5, (void *)index, &dummy);
+                    (void) hm_put(sourcefilters, $5, (void *)index, (void*)1);
+                    (void) hm_put(vars2strs, $2, $5, &dummy);
                     initDSE(&dse, dEVENT, NOTASSIGN);
                     dse.value.ev_v = NULL;
                     (void) al_insert(variables, index, dse_duplicate(dse));
@@ -629,6 +652,7 @@ struct keyval {
 
 static struct keyval keywords[] = {
     {"subscribe", SUBSCRIBE},
+    {"remote", REMOTE},
     {"to", TO},
     {"associate", ASSOCIATE},
     {"with", WITH},
@@ -862,6 +886,7 @@ void a_init(void) {
     unsigned int i;
     lineno = 1;
     topics = hm_create(25L, 5.0);
+    sourcefilters = hm_create(25L, 5.0);
     if (vars2strs != NULL)
         hm_destroy(vars2strs, free);
     vars2strs = hm_create(25L, 5.0);

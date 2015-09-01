@@ -52,10 +52,10 @@ typedef struct callBackInfo {
 } CallBackInfo;
 
 int hwdb_init(int usesRPC);
-Rtab *hwdb_exec_query(char *query, int isreadonly);
+Rtab *hwdb_exec_query(char *query, int isreadonly, RpcEndpoint *ep);
 int hwdb_send_event(Automaton *au, char *buf, int ifdisconnect);
 Table *hwdb_table_lookup(char *name);
 void hwdb_queue_cleanup(CallBackInfo *info);
-int hwdb_insert(sqlinsert *insert);
+int hwdb_insert(sqlinsert *insert, RpcEndpoint *ep);
 
 #endif /* _HWDB_H_ */

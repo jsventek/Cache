@@ -11,7 +11,7 @@ typedef struct schemaCell {
 void top_init(void);
 int  top_exist(char *name);
 int  top_create(char *name, char *schema);
-int  top_publish(char *name, char *message);
+int  top_publish(char *name, char *message, RpcEndpoint *ep);
 int  top_subscribe(char *name, unsigned long id);
 void top_unsubscribe(char *name, unsigned long id);
 int  top_schema(char *name, int *ncells, SchemaCell **schema);

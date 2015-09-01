@@ -50,7 +50,7 @@
 #include <setjmp.h>
 #include <string.h>
 #include <time.h>
-#include "srpc/srpc.h"
+#include <srpc/srpc.h>
 #include "logdefs.h"
 
 #define DEFAULT_HASH_TABLE_SIZE 20
@@ -63,11 +63,13 @@ struct automaton {
     pthread_cond_t cond;
     LinkedList *events;
     HashMap *topics;
+    HashMap *sourcefilters;
     ArrayList *variables;
     ArrayList *index2vars;
     InstructionEntry *init;
     InstructionEntry *behav;
     RpcConnection rpc;
+    RpcEndpoint ep;
 };
 
 static TSHashMap *automatons = NULL;
@@ -258,7 +260,7 @@ static void *timer_func(void *args) {
     while (1) {
         nanosleep(delay, NULL);
         ts = timestamp_to_string(timestamp_now());
-        top_publish("Timer", ts);
+        top_publish("Timer", ts, NULL);
         free(ts);
     }
     return NULL;
@@ -284,7 +286,7 @@ void au_init(void) {
     (void) pthread_create(&th, NULL, timer_func, (void *)(&delay));
 }
 
-Automaton *au_create(char *program, RpcConnection rpc, char *ebuf) {
+Automaton *au_create(char *program, RpcConnection rpc, RpcEndpoint *ep, char *ebuf) {
     Automaton *au;
     void *dummy;
     pthread_t pthr;
@@ -297,6 +299,7 @@ Automaton *au_create(char *program, RpcConnection rpc, char *ebuf) {
         pthread_mutex_init(&(au->lock), NULL);
         pthread_cond_init(&(au->cond), NULL);
         au->rpc = rpc;
+        au->ep  = *ep;
         au->events = ll_create();
         if (au->events) {
             char buf[20];
@@ -320,8 +323,9 @@ Automaton *au_create(char *program, RpcConnection rpc, char *ebuf) {
                     au->behav = (InstructionEntry *)malloc(N);
                     memcpy(au->behav, behavior, N);
                     au->variables = variables;
-		    au->index2vars = index2vars;
+		            au->index2vars = index2vars;
                     au->topics = topics;
+                    au->sourcefilters = sourcefilters;
                     sprintf(buf, "%08lx", au->id);
                     (void) tshm_put(automatons, buf, au, &dummy);
                     pthread_mutex_lock(&(au->lock));
@@ -336,6 +340,7 @@ Automaton *au_create(char *program, RpcConnection rpc, char *ebuf) {
                     }
                     variables = NULL;
                     topics = NULL;
+                    sourcefilters = NULL;
                     pthread_mutex_unlock(&(au->lock));
                     pthread_create(&pthr, NULL, thread_func, (void *)au);
                     pthread_mutex_unlock(&compile_lock);
@@ -378,10 +383,29 @@ int au_destroy(unsigned long id) {
     return ans;
 }
 
+static int sourcefilter_reject(Automaton* au, Event* ev) {
+    char* topic = ev_topic(ev);
+    void* flag;
+    int rc;
+
+    rc = hm_get(au->sourcefilters, topic, &flag);
+    if(rc==0 || flag==0) {
+        return 0;
+    }
+    if( endpoint_equal(&(au->ep), ev_source(ev)) ) {
+        return 1;
+    }
+    return 0;
+}
+
 void au_publish(unsigned long id, Event *event) {
     Automaton *au = au_au(id);
-    if (! au)
+    if (! au) {
         return;	/* probably need to ev_release event here */
+    }
+    if( sourcefilter_reject(au, event) ) {
+        return;
+    }
     pthread_mutex_lock(&(au->lock));
     if (! au->must_exit && ! au->has_exited) {
         (void)ll_addFirst(au->events, event);

@@ -222,7 +222,7 @@ int ptab_update(char *name, UNUSED char *ident, GAPLSequence *value) {
     sqli.colval = colval;
     sqli.coltype = coltype;
     sqli.transform = 1;
-    ans = hwdb_insert(&sqli);
+    ans = hwdb_insert(&sqli, NULL);
     for (i = 0; i < n; i++)
         free(colval[i]);
     free(colval);

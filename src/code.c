@@ -1911,7 +1911,7 @@ done:
         sqli.colval = colval;
         sqli.coltype = coltype;
         sqli.ncols = n;
-        ans = hwdb_insert(&sqli);
+        ans = hwdb_insert(&sqli, NULL);
     }
     for (i = 0; i < n; i++)
         free(colval[i]);

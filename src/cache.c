@@ -63,7 +63,7 @@ static void loadfile(char *file, int log, int isreadonly) {
         buf[len] = '\0';
         if (log)
             printf(">> %s\n", buf);
-        results = hwdb_exec_query(buf, isreadonly);
+        results = hwdb_exec_query(buf, isreadonly, NULL);
         if (! results)
             strcpy(resp, ILLEGAL_QUERY_RESPONSE);
         else
@@ -198,7 +198,7 @@ int main(int argc, char *argv[]) {
             p = strchr(q, '\n');
             if (p)
                 *p++ ='\0';
-            results = hwdb_exec_query(q, isreadonly);
+            results = hwdb_exec_query(q, isreadonly, &sender);
             if (log >= LOG_PACKETS) {
                 rtab_print(results);
             }
@@ -223,7 +223,7 @@ int main(int argc, char *argv[]) {
                 p = strchr(q, '\n');
                 *p++ = '\0';
                 count++;
-                results = hwdb_exec_query(q, isreadonly);
+                results = hwdb_exec_query(q, isreadonly, &sender);
                 if (log >= LOG_PACKETS) {
                     rtab_print(results);
                 }

@@ -2,11 +2,13 @@
 AUTOMAKE_OPTIONS = foreign subdir-objects
 ACLOCAL_FLAGS = -I m4
 
-bin_PROGRAMS = cache cacheclient registercallback striplf
+bin_PROGRAMS = cache cacheclient registercallback striplf testclient
 
 cache_SOURCES = cache.c hwdb.c rtab.c timestamp.c mb.c indextable.c topic.c automaton.c parser.c sqlstmts.c table.c typetable.c ptable.c nodecrawler.c event.c stack.c dsemem.c agram.c code.c gram.c scan.c gram.h agram.h scan.h parser.h
 
 cacheclient_SOURCES = cacheclient.c rtab.c typetable.c sqlstmts.c timestamp.c
+
+testclient_SOURCES = testclient.c cacheconnect.c rtab.c typetable.c sqlstmts.c timestamp.c
 
 registercallback_SOURCES = registercallback.c
 

@@ -8,7 +8,7 @@ Rtab *rtab_new();
 void rtab_free(Rtab *results);
 Rtab *rtab_unpack(char *packed, int len);
 
-int rtab_status(Rtab* r);
+int rtab_status(char *packed, char *stsmsg);
 int rtab_ncols(Rtab* r);
 int rtab_nrows(Rtab* r);
 char* rtab_message(Rtab* r);

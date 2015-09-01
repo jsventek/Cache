@@ -48,15 +48,13 @@ sqlstmt stmt;
 /*
  * forward declarations for functions in this file
  */
-Rtab *hwdb_exec_stmt(int isreadonly);
+Rtab *hwdb_exec_stmt(int isreadonly, RpcEndpoint *ep);
 Rtab *hwdb_select(sqlselect *select);
 int hwdb_create(sqlcreate *create);
-int hwdb_insert(sqlinsert *insert);
 Rtab *hwdb_showtables(void);
-int hwdb_register(sqlregister *regist);
+int hwdb_register(sqlregister *regist, RpcEndpoint *ep);
 int hwdb_unregister(sqlunregister *unregist);
 int hwdb_update(sqlupdate *update);
-//void hwdb_publish(char *tablename);
 int hwdb_send_event(Automaton *au, char *buf, int ifdisconnect);
 #ifdef HWDB_PUBLISH_IN_BACKGROUND
 void *do_publish(void *args);
@@ -97,7 +95,7 @@ static void do_cleanup(void) {
 }
 #endif /* HWDB_PUBLISH_IN_BACKGROUND */
 
-Rtab *hwdb_exec_query(char *query, int isreadonly) {
+Rtab *hwdb_exec_query(char *query, int isreadonly, RpcEndpoint *ep) {
     void *result;
 #ifdef HWDB_PUBLISH_IN_BACKGROUND
     do_cleanup();
@@ -109,10 +107,10 @@ Rtab *hwdb_exec_query(char *query, int isreadonly) {
     if (! result)
         return  rtab_new_msg(RTAB_MSG_ERROR, NULL);
 
-    return hwdb_exec_stmt(isreadonly);
+    return hwdb_exec_stmt(isreadonly, ep);
 }
 
-Rtab *hwdb_exec_stmt(int isreadonly) {
+Rtab *hwdb_exec_stmt(int isreadonly, RpcEndpoint *ep) {
     Rtab *results = NULL;
 
     switch (stmt.type) {
@@ -129,7 +127,7 @@ Rtab *hwdb_exec_stmt(int isreadonly) {
         }
         break;
     case SQL_TYPE_INSERT:
-        if (isreadonly || !hwdb_insert(&stmt.sql.insert)) {
+        if (isreadonly || !hwdb_insert(&stmt.sql.insert, ep)) {
             results = rtab_new_msg(RTAB_MSG_INSERT_FAILED, NULL);
         } else {
             results = rtab_new_msg(RTAB_MSG_SUCCESS, NULL);
@@ -154,7 +152,7 @@ Rtab *hwdb_exec_stmt(int isreadonly) {
         break;
     case SQL_TYPE_REGISTER: {
         int v;
-        if (isreadonly || !(v = hwdb_register(&stmt.sql.regist))) {
+        if (isreadonly || !(v = hwdb_register(&stmt.sql.regist, ep))) {
             results = rtab_new_msg(RTAB_MSG_REGISTER_FAILED, NULL);
         } else {
             static char buf[20];
@@ -220,7 +218,7 @@ int hwdb_update(sqlupdate *update) {
     }
 
     if (itab_update_table(itab, update)) {
-        /* hwdb_publish(update->tablename); *//* Notify subscribers */
+        // Note that no notification is generated for updates
         return 1;
     }
     return 0;
@@ -259,7 +257,7 @@ static void gen_tuple_string(Table *t, int ncols, char **colvals, char *out) {
     }
 }
 
-int  hwdb_insert(sqlinsert *insert) {
+int  hwdb_insert(sqlinsert *insert, RpcEndpoint *ep) {
     Table *tn;
     char buf[2048];
     Node *n;
@@ -296,7 +294,7 @@ int  hwdb_insert(sqlinsert *insert) {
         mb_insert_tuple(insert->ncols, insert->colval, tn);
     }
     gen_tuple_string(tn, insert->ncols, insert->colval, buf);
-    top_publish(insert->tablename, buf);
+    top_publish(insert->tablename, buf, ep); // notify subscribers
     /* Tuple sanity check */
 #ifdef DEBUG
 #ifdef VDEBUG
@@ -311,9 +309,6 @@ int  hwdb_insert(sqlinsert *insert) {
     }
 #endif /* VDEBUG */
 #endif /* DEBUG */
-
-    /* Notify all subscribers */
-    //hwdb_publish(insert->tablename);
 
     return 1;
 }
@@ -330,7 +325,7 @@ int hwdb_unregister(sqlunregister *unregist) {
     return au_destroy(id);
 }
 
-int hwdb_register(sqlregister *regist) {
+int hwdb_register(sqlregister *regist, RpcEndpoint *ep) {
     Automaton *au;
     unsigned short port;
     RpcConnection rpc = NULL;
@@ -355,7 +350,7 @@ int hwdb_register(sqlregister *regist) {
     p = strrchr(buf, '\"');
     *p = '\0';
     debugf("automaton: %s\n", buf);
-    au = au_create(buf, rpc, ebuf);
+    au = au_create(buf, rpc, ep, ebuf);
     if (! au) {
         errorf("Error creating automaton - %s\n", ebuf);
         rpc_disconnect(rpc);

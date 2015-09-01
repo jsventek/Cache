@@ -55,6 +55,7 @@ struct fpargs {
 extern ArrayList *variables;
 extern ArrayList *index2vars;
 extern HashMap *topics;
+extern HashMap *sourcefilters;
 extern HashMap *builtins;
 extern char *progname;
 /* declared in code.c */
