@@ -1,0 +1,15 @@
+Q: What's the difference between 'subscribe s to table;' and 'subscribe s to remote table;'?
+A: 'subscribe s to table;' causes the automata to execute for any insert into table. 'subscribe s to remote table;' causes the automata to execute only if the insert comes from a different rpc connection than the automata's registration.
+
+The remote keyword was added to GAPL to support work towards using Cache to operate in a distributed broker configuration using automata for inter-broker communication. Without the remote keyword, bi-directional replication by brokers would quickly cause a loop.
+
+
+Q: What is the difference between subscribe and associate?
+A: Subscriptions cause the automata to be executed on insert to the target
+table. Associations bind the target table to a variable for use in map
+operations.
+
+
+Q: How do I quote strings in GAPL?
+A: use the single quote character.
+
