@@ -158,7 +158,7 @@ subscription:	  SUBSCRIBE VAR TO VAR ';' {
                     index = al_size(variables);
                     (void) hm_put(vars2index, $2, (void *)index, &dummy);
                     (void) hm_put(topics, $4, (void *)index, &dummy);
-                    (void) hm_put(sourcefilters, $4, (void *)index, (void*)0);
+                    (void) hm_put(sourcefilters, $4, (void *)0, &dummy);
                     (void) hm_put(vars2strs, $2, $4, &dummy);
                     initDSE(&dse, dEVENT, NOTASSIGN);
                     dse.value.ev_v = NULL;
@@ -179,7 +179,7 @@ subscription:	  SUBSCRIBE VAR TO VAR ';' {
                     index = al_size(variables);
                     (void) hm_put(vars2index, $2, (void *)index, &dummy);
                     (void) hm_put(topics, $5, (void *)index, &dummy);
-                    (void) hm_put(sourcefilters, $5, (void *)index, (void*)1);
+                    (void) hm_put(sourcefilters, $5, (void *)1, &dummy);
                     (void) hm_put(vars2strs, $2, $5, &dummy);
                     initDSE(&dse, dEVENT, NOTASSIGN);
                     dse.value.ev_v = NULL;

@@ -303,7 +303,7 @@ Rtab* hwdb_table_meta(char* tablename) {
 }
 
 
-int  hwdb_insert(sqlinsert *insert) {
+int  hwdb_insert(sqlinsert *insert, RpcEndpoint *ep) {
     Table *tn;
     char buf[2048];
     Node *n;

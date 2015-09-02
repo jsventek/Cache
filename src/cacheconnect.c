@@ -2,7 +2,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
-#include "cache.h"
 #include <srpc/srpc.h>
 #include <adts/hashmap.h>
 
@@ -25,7 +24,7 @@ struct cache_response_t {
 static const char *separator = "<|>"; /* separator between packed fields */
 static char* fetch_str(char *p, char **str) {
     char *q, c;
-
+    if(*p=='\n') { p++; }
     if ((q = strstr(p, separator)) != NULL) {
         c = *q;
         *q = '\0';
@@ -115,7 +114,7 @@ void print_cache_response(CacheResponse r, FILE* fd) {
     int i,j;
     if(r==NULL) { fprintf(fd, "Bad CacheResponse\n"); return; }
 
-    fprintf(fd, "%d | %s | %d | %d\n",r->retcode, r->message, r->ncols, r->nrows);
+    fprintf(fd, "%d | %s | %d | %d",r->retcode, r->message, r->ncols, r->nrows);
     for(i=0;i<r->ncols;i++) {
         fprintf(fd, "%s |", r->headers[i]);
     }
@@ -127,7 +126,6 @@ void print_cache_response(CacheResponse r, FILE* fd) {
         }
         fprintf(fd, "\n");
     }
-    fprintf(fd, "\n");
 }
 
 /* Communication */
@@ -174,7 +172,7 @@ static void _service_handler(void* args) {
         }
         err = ahandle(resp);
         if(err) {
-            fprintf(stderr, "handler for %d had a bad time\n",id);
+            fprintf(stderr, "handler for %s had a bad time\n",id);
         }
         freeCacheResponse(resp);
     }
@@ -201,6 +199,7 @@ int init_cache(char* host, unsigned short port, char* servicename) {
         printf("rpc_init failed\n");
         return 1;
     }
+    service_functions = hm_create(25L, 0.75);
 
     printf("connection to %s:%d.%s...\n",host,port,servicename);
     rpc = rpc_connect(host, port, servicename, 1l);
@@ -209,7 +208,7 @@ int init_cache(char* host, unsigned short port, char* servicename) {
         return 1;
     }
 
-    rps = rpc_offer((char*)MY_SERVICE_NAME);
+    rps = rpc_offer(MY_SERVICE_NAME);
     if(!rps) {
         printf("Offer failed!\n");
         return 1;
@@ -230,7 +229,7 @@ int install_automata(char* automata, AutomataHandler_t ahandle) {
 
     // Prep the automata reg string
     char* rq;
-    rc = asprintf(rq, "SQL:register \"%s\" %s %d %s",automata,lhost,lport,MY_SERVICE_NAME);
+    rc = asprintf(&rq, "SQL:register \"%s\" %s %hu %s",automata,lhost,lport,MY_SERVICE_NAME);
     if(rc<1) {
         fprintf(stderr, "Can't install the automata. Can't generate the query string.\n");
         return 1;
@@ -249,8 +248,9 @@ int install_automata(char* automata, AutomataHandler_t ahandle) {
     // Update the accounting for automata events
     CacheResponse res;
     res = newCacheResponse(buf, sizeof(buf));
-    if(err) {
-        fprintf(stderr,"can't process the registration return\n");
+    printf("%s\n",buf);
+    if(res==NULL || cache_response_retcode(res) != 0) {
+        fprintf(stderr,"can't process the registration return for:\n%s--\n",query);
         return 1;
     }
     rc = hm_put(service_functions, cache_response_msg(res), ahandle, NULL);
