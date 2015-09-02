@@ -50,6 +50,7 @@ sqlstmt stmt;
  */
 Rtab *hwdb_exec_stmt(int isreadonly, RpcEndpoint *ep);
 Rtab *hwdb_select(sqlselect *select);
+Rtab *hwdb_table_meta(char* tablename);
 int hwdb_create(sqlcreate *create);
 Rtab *hwdb_showtables(void);
 int hwdb_register(sqlregister *regist, RpcEndpoint *ep);
@@ -114,6 +115,9 @@ Rtab *hwdb_exec_stmt(int isreadonly, RpcEndpoint *ep) {
     Rtab *results = NULL;
 
     switch (stmt.type) {
+    case SQL_TABLE_META:
+        results = hwdb_table_meta(stmt.sql.meta.table);
+        break;
     case SQL_TYPE_SELECT:
         results = hwdb_select(&stmt.sql.select);
         if (!results)
@@ -257,7 +261,49 @@ static void gen_tuple_string(Table *t, int ncols, char **colvals, char *out) {
     }
 }
 
-int  hwdb_insert(sqlinsert *insert, RpcEndpoint *ep) {
+Rtab* hwdb_table_meta(char* tablename) {
+    Table *tn;
+    Rrow* row;
+    int i;
+
+    debugf("Executing SHOW TABLE %s:\n",tablename);
+
+    if (! (tn = itab_table_lookup(itab, tablename))) {
+        errorf("Table name does not exist\n");
+        return 0;
+    }
+
+    /* retrieve the columns */
+    Rtab* results = rtab_new();
+    results->ncols=3;
+    results->nrows=tn->ncols;
+    results->colnames=(char**)malloc(3 * sizeof(char*));
+    results->coltypes=(int**)malloc(3 * sizeof(int*));
+    results->colnames[0]=strdup("column");
+    results->coltypes[0]=PRIMTYPE_VARCHAR;
+    results->colnames[1]=strdup("type");
+    results->coltypes[1]=PRIMTYPE_VARCHAR;
+    results->colnames[2]=strdup("primary key");
+    results->coltypes[2]=PRIMTYPE_VARCHAR;
+    results->rows=(Rrow**)malloc(results->nrows * sizeof(Rrow*));
+    for(i=0; i<results->nrows; i++) {
+        row = (Rrow*)malloc(sizeof(Rrow));
+        results->rows[i] = row;
+        row->cols = (char**)malloc(3 * sizeof(char*));
+        row->cols[0] = strdup(tn->colname[i]);
+        row->cols[1] = strdup(primtype_name[*(tn->coltype[i])]);
+        if(i==tn->primary_column) {
+            row->cols[2] = strdup("yes");
+        } else {
+            row->cols[2] = strdup("");
+        }
+    }
+    
+    return results;
+}
+
+
+int  hwdb_insert(sqlinsert *insert) {
     Table *tn;
     char buf[2048];
     Node *n;

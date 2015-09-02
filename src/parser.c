@@ -30,6 +30,11 @@ void reset_statement() {
 
     switch (stmt.type) {
 
+    case SQL_TABLE_META:
+        free(stmt.sql.meta.table);
+        stmt.type = 0;
+        break;
+
     case SQL_TYPE_REGISTER:
         free(stmt.sql.regist.automaton);
         free(stmt.sql.regist.ipaddr);
@@ -334,6 +339,10 @@ void sql_print() {
 
     case SQL_SHOW_TABLES:
         printf("Show tables\n");
+        break;
+
+    case SQL_TABLE_META:
+        printf("Show table %s\n",stmt.sql.meta.table);
         break;
 
     default:

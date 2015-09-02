@@ -6,22 +6,143 @@
 #include <srpc/srpc.h>
 #include <adts/hashmap.h>
 
+#include "cacheconnect.h"
+
 #define BUFLEN 1024
 
-typedef int (*AutomataHandler_t)(Rtab* resp);
+/* Response Data */
+struct cache_response_t {
+    int retcode;
+    char* message;
+    int ncols;
+    int nrows;
 
+    char** headers;
+    char** data;
+};
+
+/// Returns the pointer to the next char in p to scan from
+static const char *separator = "<|>"; /* separator between packed fields */
+static char* fetch_str(char *p, char **str) {
+    char *q, c;
+
+    if ((q = strstr(p, separator)) != NULL) {
+        c = *q;
+        *q = '\0';
+        *str = strdup(p);
+        *q = c;
+        q += strlen(separator);
+    } else
+        *str = '\0';
+    return q;
+}
+CacheResponse newCacheResponse(char* buf, int len) {
+    int i;
+    CacheResponse ret;
+    ret = (CacheResponse)malloc(sizeof(struct cache_response_t));
+
+    char* tdat;
+
+    buf = fetch_str(buf, &tdat);
+    ret->retcode = (int)strtol(tdat, NULL, 10);
+    free(tdat);
+
+    buf = fetch_str(buf, &tdat);
+    ret->message = tdat;
+
+    buf = fetch_str(buf, &tdat);
+    ret->ncols   = (int)strtol(tdat, NULL, 10);
+    free(tdat);
+
+    buf = fetch_str(buf, &tdat);
+    ret->nrows   = (int)strtol(tdat, NULL, 10);
+    free(tdat);
+
+    ret->headers = (char**)malloc(sizeof(char*)*ret->ncols);
+    for(i=0; i<ret->ncols; i++) {
+        buf = fetch_str(buf, &tdat);
+        ret->headers[i] = tdat;
+    }
+    ret->data = (char**)malloc(sizeof(char*)*ret->ncols*ret->nrows);
+    for(i=0; i<ret->ncols*ret->nrows; i++) {
+        buf = fetch_str(buf, &tdat);
+        ret->data[i] = tdat;
+    }
+
+    return ret;
+}
+
+int freeCacheResponse(CacheResponse r) {
+    if(r==NULL) { return 1; }
+    int i;
+    for(i=0; i<r->ncols; i++) {
+        free(r->headers[i]);
+    }
+    free(r->headers);
+    for(i=0; i<r->ncols*r->nrows; i++) {
+        free(r->data[i]);
+    }
+    free(r->data);
+    free(r->message);
+    return 0;
+}
+
+int cache_response_retcode(CacheResponse r) {
+    return r->retcode;
+}
+char* cache_response_msg(CacheResponse r) {
+    return r->message;
+}
+int cache_response_ncols(CacheResponse r) {
+    return r->ncols;
+}
+int cache_response_nrows(CacheResponse r) {
+    return r->nrows;
+}
+char* cache_response_header(CacheResponse r, int col) {
+    if(col>=0 && col<r->ncols) {
+        return r->headers[col];
+    }
+    return NULL;
+}
+char* cache_response_data(CacheResponse r, int row, int col) {
+    if(col<0 || col>=r->ncols) { return NULL; }
+    if(row<0 || row>=r->nrows) { return NULL; }
+    return r->data[row*r->ncols+col];
+}
+
+void print_cache_response(CacheResponse r, FILE* fd) {
+    int i,j;
+    if(r==NULL) { fprintf(fd, "Bad CacheResponse\n"); return; }
+
+    fprintf(fd, "%d | %s | %d | %d\n",r->retcode, r->message, r->ncols, r->nrows);
+    for(i=0;i<r->ncols;i++) {
+        fprintf(fd, "%s |", r->headers[i]);
+    }
+    fprintf(fd, "\n");
+
+    for(i=0;i<r->nrows;i++) {
+        for(j=0; j<r->ncols; j++) {
+            fprintf(fd, "%s |", r->data[i*r->ncols+j]);
+        }
+        fprintf(fd, "\n");
+    }
+    fprintf(fd, "\n");
+}
+
+/* Communication */
 static RpcConnection rpc;
 static RpcService rps;
 static HashMap* service_functions;
 
-static char* lhost;
+static char lhost[128];
 static unsigned short lport;
 static char MY_SERVICE_NAME[]="autozone";
 
 static pthread_t serviceThread;
 
 static void _service_handler(void* args) {
-    Rtab* resp;
+    CacheResponse resp;
     char* rq;
     void* qb = (void*)malloc(BUFLEN);
     RpcEndpoint ep;
@@ -42,20 +163,20 @@ static void _service_handler(void* args) {
             exit(1);
         }
 
-        resp = rtab_unpack(buf1, BUFLEN);
+        resp = newCacheResponse(buf1, BUFLEN);
 
-        char* id = rtab_message(resp);
+        char* id = cache_response_msg(resp);
         rc = hm_get(service_functions, id, (void**)&ahandle);
         if(rc==0) {
             fprintf(stderr,"no handler function for %d\n",id);
-            rtab_free(resp);
+            freeCacheResponse(resp);
             continue;
         }
         err = ahandle(resp);
         if(err) {
             fprintf(stderr, "handler for %d had a bad time\n",id);
         }
-        rtab_free(resp);
+        freeCacheResponse(resp);
     }
     free(buf1);
 }
@@ -126,14 +247,14 @@ int install_automata(char* automata, AutomataHandler_t ahandle) {
     }
 
     // Update the accounting for automata events
-    Rtab* res;
-    res = rtab_new(buf, sizeof(buf));
+    CacheResponse res;
+    res = newCacheResponse(buf, sizeof(buf));
     if(err) {
         fprintf(stderr,"can't process the registration return\n");
         return 1;
     }
-    rc = hm_put(service_functions, rtab_message(res), ahandle, NULL);
-    rtab_free(res);
+    rc = hm_put(service_functions, cache_response_msg(res), ahandle, NULL);
+    freeCacheResponse(res);
 
     return 0;
 }
@@ -166,24 +287,27 @@ int install_file_automata(char* fname, AutomataHandler_t ahandle) {
     return result;
 }
 
-int raw_sql(char* query_text, char* rbuf, int rlen) {
+CacheResponse raw_sql(char* query_text) {
     int rc;
     int len;
     int alen;
     alen = strlen(query_text);
+
+    int rlen=4096;
+    char rbuf[rlen];
 
     Q_Decl(equery, alen+5);
     snprintf(equery, alen+5, "SQL:%s", query_text);
     rc = rpc_call(rpc, Q_Arg(equery), strlen(equery)+1, rbuf, rlen, &len);
     if(rc==0) {
         printf("raw query failed catastrophically\n");
-        return 1;
+        return NULL;
     }
-    return 0;
+    return newCacheResponse(rbuf, len);
 }
 
-int file_sql(char* fname, char* rbuf, int rlen) {
-    int result;
+CacheResponse file_sql(char* fname) {
+    CacheResponse result;
     FILE* f;
     int slen;
 
@@ -195,8 +319,8 @@ int file_sql(char* fname, char* rbuf, int rlen) {
     f = fopen(fname,"r");
     slen = fread(buf, buflen, buflen, f);
     if(slen != buflen) {
-        fprintf(stderr,"Problem reading the automata from disk.\n");
-        return 1;
+        fprintf(stderr,"Problem reading the query from disk.\n");
+        return NULL;
     }
     buf[buflen]='\0';
     /*strip whitespace since it is meaningful to the protocol*/
@@ -204,7 +328,7 @@ int file_sql(char* fname, char* rbuf, int rlen) {
     for(i=0;i<buflen;i++) {
         if(buf[i]=='\n') { buf[i]=' '; }
     }
-    result = raw_sql(buf, rbuf, rlen);
+    result = raw_sql(buf);
     free(buf);
 
     return result;

@@ -47,6 +47,7 @@
 #define SQL_TYPE_REGISTER 6
 #define SQL_TYPE_UNREGISTER 7
 #define SQL_TYPE_DELETE 8
+#define SQL_TABLE_META 9
 
 #define SQL_WINTYPE_NONE 0
 #define SQL_WINTYPE_TIME 1
@@ -186,6 +187,10 @@ typedef struct sqlunregister {
     char *id;
 } sqlunregister;
 
+typedef struct sqlmeta {
+    char* table;
+} sqlmeta;
+
 typedef struct sqlstmt {
     int type;
     char *name;
@@ -197,6 +202,7 @@ typedef struct sqlstmt {
         sqldelete delete;
         sqlregister regist;
         sqlunregister unregist;
+        sqlmeta meta;
     } sql;
 } sqlstmt;
 
