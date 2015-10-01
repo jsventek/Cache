@@ -14,7 +14,8 @@ cache_SOURCES = cache.c hwdb.c rtab.c timestamp.c mb.c indextable.c topic.c auto
 
 cacheclient_SOURCES = cacheclient.c rtab.c typetable.c sqlstmts.c timestamp.c
 
-testclient_SOURCES = testclient.c cacheconnect.c
+testclient_SOURCES = testclient.c 
+testclient_LDADD = libcache.la
 
 registercallback_SOURCES = registercallback.c
 
