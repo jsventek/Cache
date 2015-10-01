@@ -2,6 +2,12 @@
 AUTOMAKE_OPTIONS = foreign subdir-objects
 ACLOCAL_FLAGS = -I m4
 
+# library for clients
+lib_LTLIBRARIES = libcache.la
+include_HEADERS = cacheconnect.h
+libcache_la_SOURCES = cacheconnect.c
+
+# cache programs
 bin_PROGRAMS = cache cacheclient registercallback striplf testclient
 
 cache_SOURCES = cache.c hwdb.c rtab.c timestamp.c mb.c indextable.c topic.c automaton.c parser.c sqlstmts.c table.c typetable.c ptable.c nodecrawler.c event.c stack.c dsemem.c agram.c code.c gram.c scan.c gram.h agram.h scan.h parser.h
