@@ -1,0 +1,10 @@
+Q: What introspection does Cache support via SQL?
+A: Using the SQL, you can get a listing of the existing tables and the column descriptions of a table. 'show tables" will list all of the tables in the Cache instance. 'show table foo' will describe the columns of table foo.
+
+
+Q: When I try to insert a string into a varchar column that looks like an IP address Cache says there is an error. Why?
+A: The SQL lexer and parser are still a little weak and don't check the underlying table description for type coarsion. There is hope that this behavior will be changed in future releases.
+
+
+Q: Why do I need to quote all of the values for an insert?
+A: The SQL lexer and parser are weak. This behavior will be fixed in some future release.
