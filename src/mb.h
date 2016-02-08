@@ -6,14 +6,15 @@
 
 #include "tuple.h"
 #include "table.h"
+#include "timestamp.h"
 
 void mb_init();
 
 int mb_insert(unsigned char *buf, long len, Table *table);
 
-int mb_insert_tuple(int ncols, char *vals[], Table *table);
+tstamp_t mb_insert_tuple(int ncols, char *vals[], Table *table);
 
-int heap_insert_tuple(int ncols, char *vals[], Table *table, Node *n);
+tstamp_t heap_insert_tuple(int ncols, char *vals[], Table *table, Node *n);
 Node *heap_alloc_node(int ncols, char *vals[], Table *table);
 void heap_remove_node(Node *n, Table *tn);
 void mb_dump();

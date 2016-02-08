@@ -40,5 +40,6 @@ int ptab_hasEntry(char *name, char *ident);
 GAPLSequence *ptab_lookup(char *name, char *ident);
 int ptab_update(char *name, char *ident, GAPLSequence *value);
 int ptab_keys(char *name, char ***theKeys);
+void ptab_delete(char *name, char *ident);
 
 #endif /* _PTABLE_H_ */

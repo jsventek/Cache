@@ -65,8 +65,8 @@ typedef struct rtab {
     int  **coltypes;		/* Array of column data types */
     Rrow **rows; 		/* Array of rows (data) */
     /* Embedded messages (e.g. error messages) */
+    char msg[RTAB_MSG_MAX_LENGTH];
     char mtype;
-    char *msg;
 } Rtab;
 
 Rtab *rtab_new();

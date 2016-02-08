@@ -49,6 +49,7 @@ typedef struct machineContext {
     ArrayList *index2vars;
     Stack *stack;
     char *currentTopic;
+    Event *currentEvent;
     Automaton *au;
     InstructionEntry *pc;
 } MachineContext;

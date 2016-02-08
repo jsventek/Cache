@@ -43,7 +43,7 @@ Rtab *rtab_new() {
     results->coltypes = NULL;
     results->rows = NULL;
     results->mtype = RTAB_MSG_SUCCESS;
-    results->msg = (char *)error_msgs[0];
+    strcpy(results->msg, error_msgs[0]);
 
     return results;
 }
@@ -52,9 +52,9 @@ Rtab *rtab_new_msg(char mtype, char *message) {
     Rtab *results = rtab_new();
     results->mtype = mtype;
     if (! message)
-        results->msg = (char *)error_msgs[(int)mtype];
+        strcpy(results->msg, error_msgs[(int)mtype]);
     else
-        results->msg = message;
+        strcpy(results->msg, message);
     return results;
 }
 
@@ -254,7 +254,7 @@ Rtab *rtab_unpack(char *packed, int len) {
     buf = rtab_fetch_int(buf, &ncols);
     buf = rtab_fetch_int(buf, &nrows);
     results->mtype = mtype;
-    results->msg = (char *)error_msgs[mtype];
+    strcpy(results->msg, tmpbuf);
     results->nrows = nrows;
     results->ncols = ncols;
     debugf("RTAB MESSAGE TYPE: %d\n", results->mtype);

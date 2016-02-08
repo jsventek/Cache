@@ -48,14 +48,16 @@ sqlstmt stmt;
 /*
  * forward declarations for functions in this file
  */
-Rtab *hwdb_exec_stmt(int isreadonly, RpcEndpoint *ep);
+Rtab *hwdb_exec_stmt(int isreadonly);
 Rtab *hwdb_select(sqlselect *select);
-Rtab *hwdb_table_meta(char* tablename);
+Rtab *hwdb_table_meta(char *tablename);
 int hwdb_create(sqlcreate *create);
+tstamp_t hwdb_insert(sqlinsert *insert);
 Rtab *hwdb_showtables(void);
-int hwdb_register(sqlregister *regist, RpcEndpoint *ep);
+int hwdb_register(sqlregister *regist);
 int hwdb_unregister(sqlunregister *unregist);
 int hwdb_update(sqlupdate *update);
+//void hwdb_publish(char *tablename);
 int hwdb_send_event(Automaton *au, char *buf, int ifdisconnect);
 #ifdef HWDB_PUBLISH_IN_BACKGROUND
 void *do_publish(void *args);
@@ -96,7 +98,7 @@ static void do_cleanup(void) {
 }
 #endif /* HWDB_PUBLISH_IN_BACKGROUND */
 
-Rtab *hwdb_exec_query(char *query, int isreadonly, RpcEndpoint *ep) {
+Rtab *hwdb_exec_query(char *query, int isreadonly) {
     void *result;
 #ifdef HWDB_PUBLISH_IN_BACKGROUND
     do_cleanup();
@@ -108,10 +110,10 @@ Rtab *hwdb_exec_query(char *query, int isreadonly, RpcEndpoint *ep) {
     if (! result)
         return  rtab_new_msg(RTAB_MSG_ERROR, NULL);
 
-    return hwdb_exec_stmt(isreadonly, ep);
+    return hwdb_exec_stmt(isreadonly);
 }
 
-Rtab *hwdb_exec_stmt(int isreadonly, RpcEndpoint *ep) {
+Rtab *hwdb_exec_stmt(int isreadonly) {
     Rtab *results = NULL;
 
     switch (stmt.type) {
@@ -130,9 +132,22 @@ Rtab *hwdb_exec_stmt(int isreadonly, RpcEndpoint *ep) {
             results = rtab_new_msg(RTAB_MSG_SUCCESS, NULL);
         }
         break;
-    case SQL_TYPE_INSERT:
-        if (isreadonly || !hwdb_insert(&stmt.sql.insert, ep)) {
+    case SQL_TYPE_INSERT: {
+        tstamp_t ts;
+        if (isreadonly || !(ts = hwdb_insert(&stmt.sql.insert))) {
             results = rtab_new_msg(RTAB_MSG_INSERT_FAILED, NULL);
+        } else {
+            static char buf[20];
+            char *s = timestamp_to_string(ts);
+            strcpy(buf, s);
+            free(s);
+            results = rtab_new_msg(RTAB_MSG_SUCCESS, buf);
+        }
+        break;
+    }
+    case SQL_TYPE_DELETE:
+        if (isreadonly || !hwdb_delete(&stmt.sql.delete)) {
+            results = rtab_new_msg(RTAB_MSG_DELETE_FAILED, NULL);
         } else {
             results = rtab_new_msg(RTAB_MSG_SUCCESS, NULL);
         }
@@ -144,19 +159,12 @@ Rtab *hwdb_exec_stmt(int isreadonly, RpcEndpoint *ep) {
             results = rtab_new_msg(RTAB_MSG_SUCCESS, NULL);
         }
         break;
-    case SQL_TYPE_DELETE:
-        if (isreadonly || !hwdb_delete(&stmt.sql.delete)) {
-            results = rtab_new_msg(RTAB_MSG_DELETE_FAILED, NULL);
-        } else {
-            results = rtab_new_msg(RTAB_MSG_SUCCESS, NULL);
-        }
-        break;
     case SQL_SHOW_TABLES:
         results = hwdb_showtables();
         break;
     case SQL_TYPE_REGISTER: {
         int v;
-        if (isreadonly || !(v = hwdb_register(&stmt.sql.regist, ep))) {
+        if (isreadonly || !(v = hwdb_register(&stmt.sql.regist))) {
             results = rtab_new_msg(RTAB_MSG_REGISTER_FAILED, NULL);
         } else {
             static char buf[20];
@@ -222,7 +230,7 @@ int hwdb_update(sqlupdate *update) {
     }
 
     if (itab_update_table(itab, update)) {
-        // Note that no notification is generated for updates
+        /* Note that no notification is generated for updates */
         return 1;
     }
     return 0;
@@ -235,7 +243,6 @@ int hwdb_delete(sqldelete *delete) {
         errorf("HWDB: %s no such table\n", delete->tablename);
         return 0;
     }
-
     if (itab_delete_rows(itab, delete)) {
         return 1;
     }
@@ -246,8 +253,8 @@ int  hwdb_create(sqlcreate *create) {
     debugf("Executing CREATE:\n");
 
     return itab_create_table(itab, create->tablename, create->ncols,
-                             create->colname, create->coltype, create->tabletype,
-                             create->primary_column);
+                             create->colname, create->coltype,
+                             create->tabletype, create->primary_column);
 }
 
 static void gen_tuple_string(Table *t, int ncols, char **colvals, char *out) {
@@ -261,12 +268,13 @@ static void gen_tuple_string(Table *t, int ncols, char **colvals, char *out) {
     }
 }
 
-Rtab* hwdb_table_meta(char* tablename) {
+Rtab *hwdb_table_meta(char *tablename) {
     Table *tn;
-    Rrow* row;
+    Rrow *row;
     int i;
+    Rtab *results;
 
-    debugf("Executing SHOW TABLE %s:\n",tablename);
+    debugf("Executing SHOW TABLE %s:\n", tablename);
 
     if (! (tn = itab_table_lookup(itab, tablename))) {
         errorf("Table name does not exist\n");
@@ -274,52 +282,47 @@ Rtab* hwdb_table_meta(char* tablename) {
     }
 
     /* retrieve the columns */
-    Rtab* results = rtab_new();
-    results->ncols=3;
-    results->nrows=tn->ncols;
-    results->colnames=(char**)malloc(3 * sizeof(char*));
-    results->coltypes=(int**)malloc(3 * sizeof(int*));
-    results->colnames[0]=strdup("column");
-    results->coltypes[0]=PRIMTYPE_VARCHAR;
-    results->colnames[1]=strdup("type");
-    results->coltypes[1]=PRIMTYPE_VARCHAR;
-    results->colnames[2]=strdup("primary key");
-    results->coltypes[2]=PRIMTYPE_VARCHAR;
-    results->rows=(Rrow**)malloc(results->nrows * sizeof(Rrow*));
-    for(i=0; i<results->nrows; i++) {
-        row = (Rrow*)malloc(sizeof(Rrow));
+    results = rtab_new();
+    results->ncols = 3;
+    results->nrows = tn->ncols;
+    results->colnames = (char **)malloc(3 * sizeof(char *));
+    results->coltypes = (int **)malloc(3 * sizeof(int *));
+    results->colnames[0] = strdup("column");
+    results->coltypes[0] = PRIMTYPE_VARCHAR;
+    results->colnames[1] = strdup("type");
+    results->coltypes[1] = PRIMTYPE_VARCHAR;
+    results->colnames[2] = strdup("primary key");
+    results->coltypes[2] = PRIMTYPE_VARCHAR;
+    results->rows = (Rrow **)malloc(results->nrows * sizeof(Rrow *));
+    for (i = 0; i < results->nrows; i++) {
+        row = (Rrow *)malloc(sizeof(Rrow));
         results->rows[i] = row;
-        row->cols = (char**)malloc(3 * sizeof(char*));
+        row->cols = (char **)malloc(3 * sizeof(char *));
         row->cols[0] = strdup(tn->colname[i]);
         row->cols[1] = strdup(primtype_name[*(tn->coltype[i])]);
-        if(i==tn->primary_column) {
-            row->cols[2] = strdup("yes");
-        } else {
-            row->cols[2] = strdup("");
-        }
+        row->cols[2] = (i == tn->primary_column) ? strdup("yes") : strdup("");
     }
-    
     return results;
 }
 
-
-int  hwdb_insert(sqlinsert *insert, RpcEndpoint *ep) {
+tstamp_t  hwdb_insert(sqlinsert *insert) {
     Table *tn;
     char buf[2048];
     Node *n;
+    tstamp_t ts;
 
     debugf("Executing INSERT:\n");
 
     if (! (tn = itab_table_lookup(itab, insert->tablename))) {
         errorf("Insert table name does not exist\n");
-        return 0;
+        return (tstamp_t)0;
     }
 
     /* Check columns are compatible */
     if (!itab_is_compatible(itab, insert->tablename,
                             insert->ncols, insert->coltype)) {
         errorf("Insert not compatible with table\n");
-        return 0;
+        return (tstamp_t)0;
     }
 
     /* Check values don't violate primary key constraint */
@@ -328,19 +331,19 @@ int  hwdb_insert(sqlinsert *insert, RpcEndpoint *ep) {
         debugf("Transformation %d\n", insert->transform);
         if (! insert->transform) {
             errorf("Insert violates primary key\n");
-            return 0;
+            return (tstamp_t)0;
         }
     }
 
     /* allocate space for tuple, copy values into tuple, thread new
      * node to end of table */
     if ( table_persistent(tn) ) {
-        heap_insert_tuple(insert->ncols, insert->colval, tn, n);
+        ts = heap_insert_tuple(insert->ncols, insert->colval, tn, n);
     } else {
-        mb_insert_tuple(insert->ncols, insert->colval, tn);
+        ts = mb_insert_tuple(insert->ncols, insert->colval, tn);
     }
     gen_tuple_string(tn, insert->ncols, insert->colval, buf);
-    top_publish(insert->tablename, buf, ep); // notify subscribers
+    top_publish(insert->tablename, buf);
     /* Tuple sanity check */
 #ifdef DEBUG
 #ifdef VDEBUG
@@ -356,7 +359,10 @@ int  hwdb_insert(sqlinsert *insert, RpcEndpoint *ep) {
 #endif /* VDEBUG */
 #endif /* DEBUG */
 
-    return 1;
+    /* Notify all subscribers */
+    //hwdb_publish(insert->tablename);
+
+    return ts;
 }
 
 Rtab *hwdb_showtables(void) {
@@ -371,7 +377,7 @@ int hwdb_unregister(sqlunregister *unregist) {
     return au_destroy(id);
 }
 
-int hwdb_register(sqlregister *regist, RpcEndpoint *ep) {
+int hwdb_register(sqlregister *regist) {
     Automaton *au;
     unsigned short port;
     RpcConnection rpc = NULL;
@@ -393,10 +399,15 @@ int hwdb_register(sqlregister *regist, RpcEndpoint *ep) {
     /* compile automaton */
     /* automaton has leading and trailing quotes */
     strcpy(buf, regist->automaton+1);
+    /* convert '\r' back into '\n' */
+    for (p = buf; *p != '\0'; p++)
+        if (*p == '\r')
+            *p = '\n';
+    /* remove trailing quote */
     p = strrchr(buf, '\"');
     *p = '\0';
     debugf("automaton: %s\n", buf);
-    au = au_create(buf, rpc, ep, ebuf);
+    au = au_create(buf, rpc, ebuf);
     if (! au) {
         errorf("Error creating automaton - %s\n", ebuf);
         rpc_disconnect(rpc);

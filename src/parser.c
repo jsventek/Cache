@@ -127,17 +127,17 @@ void reset_statement() {
         break;
 
     case SQL_TYPE_DELETE:
-        free(stmt.sql.update.tablename);
-        if (stmt.sql.update.nfilters > 0) {
-            for (i = 0; i < stmt.sql.update.nfilters; i++) {
-                free(stmt.sql.update.filters[i]->varname);
-                free(stmt.sql.update.filters[i]);
+        free(stmt.sql.delete.tablename);
+        if (stmt.sql.delete.nfilters > 0) {
+            for (i = 0; i < stmt.sql.delete.nfilters; i++) {
+                free(stmt.sql.delete.filters[i]->varname);
+                free(stmt.sql.delete.filters[i]);
             }
-            free(stmt.sql.update.filters);
+            free(stmt.sql.delete.filters);
         }
-        stmt.sql.update.nfilters = 0;
-        stmt.sql.update.filters = NULL;
-        stmt.sql.update.filtertype = 0;
+        stmt.sql.delete.nfilters = 0;
+        stmt.sql.delete.filters = NULL;
+        stmt.sql.delete.filtertype = 0;
         stmt.type = 0;
         break;
 
@@ -342,7 +342,7 @@ void sql_print() {
         break;
 
     case SQL_TABLE_META:
-        printf("Show table %s\n",stmt.sql.meta.table);
+        printf("Show table %s\n", stmt.sql.meta.table);
         break;
 
     default:

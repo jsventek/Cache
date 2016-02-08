@@ -140,6 +140,17 @@ static void *handler(void *args) {
     return (args) ? NULL : args;	/* unused warning subterfuge */
 }
 
+static void print_cmd(char *str) {
+    int len = strlen(str);
+    int i;
+    for (i = 0; i < len; i++)
+        if (str[i] == '\r')
+            fputc('\n', stdout);
+        else
+            fputc(str[i], stdout);
+    fputc('\n', stdout);
+}
+
 #define DELAY 5		/* number of minutes to delay before unsubscribing */
 
 static struct timespec time_delay = {0, 0};
@@ -230,7 +241,7 @@ int main(int argc, char *argv[]) {
      * now register automaton
      */
     sprintf(query, "SQL:register \"%s\" %s %hu %s", automaton, myhost, myport, service);
-    printf("%s\n", query);
+    print_cmd(query);
     if (!rpc_call(rpc, Q_Arg(query), strlen(query)+1, resp, 100, &rlen)) {
         fprintf(stderr, "Error issuing register command\n");
         exit(1);

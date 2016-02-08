@@ -63,7 +63,7 @@ static void loadfile(char *file, int log, int isreadonly) {
         buf[len] = '\0';
         if (log)
             printf(">> %s\n", buf);
-        results = hwdb_exec_query(buf, isreadonly, NULL);
+        results = hwdb_exec_query(buf, isreadonly);
         if (! results)
             strcpy(resp, ILLEGAL_QUERY_RESPONSE);
         else
@@ -75,6 +75,14 @@ static void loadfile(char *file, int log, int isreadonly) {
         rtab_free(results);
     }
     fclose(fd);
+}
+
+static void crtolf(char *buf) {
+    while (*buf != '\0')
+        if (*buf == '\r')
+            *buf++ = '\n';
+        else
+            buf++;
 }
 
 int main(int argc, char *argv[]) {
@@ -181,7 +189,10 @@ int main(int argc, char *argv[]) {
             break;
         buf[len] = '\0';
         if (log >= LOG_PACKETS) {
-            MSG("Received: %s", buf);
+            static char tmp[SOCK_RECV_BUF_LEN];
+            strcpy(tmp, buf);
+            crtolf(tmp);
+            MSG("Received: %s", tmp);
         }
         p = strchr(buf, ':');
         if (p == NULL) {
@@ -198,7 +209,7 @@ int main(int argc, char *argv[]) {
             p = strchr(q, '\n');
             if (p)
                 *p++ ='\0';
-            results = hwdb_exec_query(q, isreadonly, &sender);
+            results = hwdb_exec_query(q, isreadonly);
             if (log >= LOG_PACKETS) {
                 rtab_print(results);
             }
@@ -223,7 +234,7 @@ int main(int argc, char *argv[]) {
                 p = strchr(q, '\n');
                 *p++ = '\0';
                 count++;
-                results = hwdb_exec_query(q, isreadonly, &sender);
+                results = hwdb_exec_query(q, isreadonly);
                 if (log >= LOG_PACKETS) {
                     rtab_print(results);
                 }

@@ -1,5 +1,5 @@
 /**
- * nodecrawler.h
+ * nodecrawler.c
  *
  * Node Crawler
  *
@@ -688,32 +688,19 @@ char *updatetable(sqlupdate *update, void *colVal, int *colType, int idx,
 }
 
 void nodecrawler_delete_rows(Nodecrawler *nc, Table *tn, sqldelete *delete) {
-    Node *n;
-    union Tuple *p;
-
-    char *value;
-
-    int i;
-
-    void *colVal;
-    int *colType;
-
-    LinkedList *lcols;
-    int ncols;
-    char **colvals;
 
     if (nc->empty) {
         debugvf("Nodecrawler: empty list! (Doing nothing)\n");
         return;
     }
-    debugvf("Nodecrawler: deteleting rows\n");
+    debugvf("Nodecrawler: deleting rows\n");
     nodecrawler_set_to_start(nc);
     while (nodecrawler_has_more(nc)) {
-        long dummyLen;
+        Node *n;
         n = nc->current;
 
         /* remove n from list */
-        if (tn->oldest == tn->newest) { /* == n */
+        if (tn->oldest == tn->newest) {  /* singleton list, == n */
             tn->oldest = NULL;
             tn->newest = NULL;
         } else if (tn->oldest == n) {
@@ -726,15 +713,12 @@ void nodecrawler_delete_rows(Nodecrawler *nc, Table *tn, sqldelete *delete) {
             n->prev->next = n->next;
             n->next->prev = n->prev;
         }
+        free(n->tuple);
         free(n);
         --tn->count;
 
-        /* nc->current = tn->oldest; */
-        //nodecrawler_reset(nc, tn);
-
         nodecrawler_move_to_next(nc);
     }
-
     return;
 }
 

@@ -53,15 +53,15 @@ int ptab_hasEntry(char *name, char *ident) {
     return result;
 }
 
-void ptab_delete(char* name, char* ident) {
+void ptab_delete(char *name, char *ident) {
     Table *tn = hwdb_table_lookup(name);
     Nodecrawler *nc;
+    Node *n;
     table_lock(tn);
-    Node* n;
     nc = nodecrawler_new(tn->oldest, tn->newest);
     if ((n = nodecrawler_find_value(nc, tn->primary_column, ident))) {
         /* remove n from list */
-        if (tn->oldest == tn->newest) { /* == n */
+        if (tn->oldest == tn->newest) {	/* one item, == n */
             tn->oldest = NULL;
             tn->newest = NULL;
         } else if (tn->oldest == n) {
@@ -77,7 +77,6 @@ void ptab_delete(char* name, char* ident) {
         free(n->tuple);
         free(n);
         --tn->count;
-
     }
     nodecrawler_free(nc);
     table_unlock(tn);
@@ -222,7 +221,7 @@ int ptab_update(char *name, UNUSED char *ident, GAPLSequence *value) {
     sqli.colval = colval;
     sqli.coltype = coltype;
     sqli.transform = 1;
-    ans = hwdb_insert(&sqli, NULL);
+    ans = hwdb_insert(&sqli);
     for (i = 0; i < n; i++)
         free(colval[i]);
     free(colval);

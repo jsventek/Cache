@@ -17,7 +17,7 @@
 #include <stdlib.h>
 #include <sys/time.h>
 
-#define USAGE "./cacheclient [-f fifo] [-h host] [-p port] [-l packets] [-b nlines]"
+#define USAGE "./cacheclient [-f fifo] [-h host] [-p port] [-l packets] [-b nlines] [-s service]"
 #define MAX_LINE 4096
 #define MAX_INSERTS 500
 
@@ -82,7 +82,7 @@ int main(int argc, char *argv[]) {
     host = HWDB_SERVER_ADDR;
     port = HWDB_SERVER_PORT;
     service = "HWDB";
-    log = 1;
+    log = 0;
     ifbulk = 0;
     for (i = 1; i < argc; ) {
         if ((j = i + 1) == argc) {

@@ -113,7 +113,7 @@ int top_create(char *name, char *schema) {
     return 0;
 }
 
-int top_publish(char *name, char *message, RpcEndpoint *ep) {
+int top_publish(char *name, char *message) {
     int ret = 0;
     Topic *st;
 
@@ -125,7 +125,7 @@ int top_publish(char *name, char *message, RpcEndpoint *ep) {
             iter = ll_it_create(st->regAUs);
             if (iter) {
                 Event *event;
-                event = ev_create(name, message, ep, ll_size(st->regAUs));
+                event = ev_create(name, message, ll_size(st->regAUs));
                 if (event) {
                     unsigned long id;
                     while (it_hasNext(iter)) {

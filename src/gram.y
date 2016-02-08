@@ -194,7 +194,7 @@ sqlStmt:      selectStmt {
                 stmt.sql.delete.tablename = tablename;
                 if (flist) {
                   stmt.sql.delete.nfilters = (int)ll_size(flist);
-                  stmt.sql.delete.filters = (sqlfilter **) ll_toArray(flist, &dummyLong);
+                  stmt.sql.delete.filters = (sqlfilter **)ll_toArray(flist, &dummyLong);
                   stmt.sql.delete.filtertype = filtertype;
                   ll_destroy(flist, NULL);
                   flist = NULL;
@@ -225,7 +225,7 @@ sqlStmt:      selectStmt {
                 stmt.type = SQL_SHOW_TABLES;
               }
             | SHOW TABLETK WORD {
-                debugvf("Show table.\n");
+                debugvf("Show table %s.\n", (char *)$3);
                 stmt.sql.meta.table = $3;
                 stmt.type = SQL_TABLE_META;
               }
@@ -336,8 +336,8 @@ all:          STAR {
                 debugvf("Select *\n");
                 /* no accumulated list possible with STAR */
                 if (clist) {
-                    ll_destroy(clist, NULL);
-                    clist=NULL;
+                  ll_destroy(clist, NULL);
+                  clist = NULL;
                 }
                 if (!clist)
                   clist = ll_create();
@@ -783,8 +783,9 @@ insertStmt:   INSERT INTO WORD VALUES OPENBRKT valList CLOSEBRKT {
                 transform = 1;
               } 
             ;
+
 deleteStmt:   DELETE FROM WORD WHERE filterList {
-                debugvf("Delete records from %s\n", (char*)$3);
+                debugvf("Delete records from %s\n", (char *)$3);
                 tablename = $3;
               }
             ;

@@ -33,8 +33,8 @@ into			{ return INTO;}
 VALUES			{ return VALUES;}
 values			{ return VALUES;}
 
-DELETE          { return DELETE; }
-delete          { return DELETE; }
+DELETE                  { return DELETE; }
+delete                  { return DELETE; }
 
 update			{ return UPDATE; }
 UPDATE			{ return UPDATE; }

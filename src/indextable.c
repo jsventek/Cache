@@ -146,7 +146,7 @@ int itab_delete_rows(Indextable *itab, sqldelete *delete) {
     Table *tn;
     Nodecrawler *nc;
     int stat;
-    debugvf("Itab: updating table\n");
+    debugvf("Itab: deleting rows from table\n");
     itab_lock(itab);
     stat = hm_get(itab->ht, delete->tablename, (void **)&tn);
     itab_unlock(itab);
@@ -163,9 +163,8 @@ int itab_delete_rows(Indextable *itab, sqldelete *delete) {
     table_lock(tn);
     nc = nodecrawler_new(tn->oldest, tn->newest);
 
-    nodecrawler_apply_filter(nc, tn,
-                             delete->nfilters, delete->filters, delete->filtertype);
-
+    nodecrawler_apply_filter(nc, tn, delete->nfilters, delete->filters,
+                             delete->filtertype);
     nodecrawler_delete_rows(nc, tn, delete);
 
     /* Reset dropped markers */

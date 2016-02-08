@@ -6,12 +6,12 @@
  */
 
 #include "event.h"
-#include <srpc/srpc.h>
+#include "srpc/srpc.h"
 
 typedef struct automaton Automaton;
 
 void          au_init(void);
-Automaton     *au_create(char *program, RpcConnection rpc, RpcEndpoint *ep, char *ebuf);
+Automaton     *au_create(char *program, RpcConnection rpc, char *ebuf);
 int           au_destroy(unsigned long id);
 void          au_publish(unsigned long id, Event *event);
 unsigned long au_id(Automaton *au);

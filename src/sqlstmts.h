@@ -170,7 +170,7 @@ typedef struct sqlinsert {
 } sqlinsert;
 
 typedef struct sqldelete {
-    char* tablename;
+    char *tablename;
     int nfilters;
     sqlfilter **filters;
     int filtertype;
@@ -188,7 +188,7 @@ typedef struct sqlunregister {
 } sqlunregister;
 
 typedef struct sqlmeta {
-    char* table;
+    char *table;
 } sqlmeta;
 
 typedef struct sqlstmt {

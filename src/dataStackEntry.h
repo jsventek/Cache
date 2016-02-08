@@ -39,6 +39,7 @@
  * the data stack for the event processor is an array of the following structs
  */
 
+#define dNULL      0
 #define dBOOLEAN   1
 #define dINTEGER   2
 #define dDOUBLE    3

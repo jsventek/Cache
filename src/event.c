@@ -15,7 +15,6 @@ struct event {
     int refCount, ncols;
     char *data;
     char *topic;
-    RpcEndpoint source;
     DataStackEntry *theData;
 };
 
@@ -66,7 +65,7 @@ static void unpack(char *sd, int n, SchemaCell *schema, DataStackEntry *d) {
     }
 }
 
-Event *ev_create(char *name, char *eventData, RpcEndpoint* src, unsigned long nAUs) {
+Event *ev_create(char *name, char *eventData, unsigned long nAUs) {
     int ncols;
     SchemaCell *schema;
     DataStackEntry *d;
@@ -77,7 +76,6 @@ Event *ev_create(char *name, char *eventData, RpcEndpoint* src, unsigned long nA
         if (t->data) {
             t->topic = strdup(name);
             if (t->topic) {
-                t->source = *src;
                 t->refCount = nAUs;
                 (void) top_schema(name, &ncols, &schema);
                 d = (DataStackEntry *)malloc(ncols * sizeof(DataStackEntry));
@@ -119,7 +117,6 @@ void ev_release(Event *event) {
         free((void *)event->data);
         free((void *)event->topic);
         free((void *)event->theData);
-        //free(event->ep);
         free((void *)event);
     }
     pthread_mutex_unlock(&ev_mutex);
@@ -131,10 +128,6 @@ char *ev_data(Event *event) {
 
 char *ev_topic(Event *event) {
     return event->topic;
-}
-
-RpcEndpoint*  ev_source(Event *event) {
-    return &(event->source);
 }
 
 int ev_theData(Event *event, DataStackEntry **dse) {

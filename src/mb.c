@@ -257,9 +257,9 @@ int mb_insert(unsigned char *buf, long len, Table *tb) {
 /*
  * mb_insert_tuple - insert tuple into the circular buffer
  *
- * return 1 if successful, 0 if not
+ * return timestamp if successful, (tstamp_t)0 if not
  */
-int mb_insert_tuple(int ncols, char *vals[], Table *tb) {
+tstamp_t mb_insert_tuple(int ncols, char *vals[], Table *tb) {
     Node *n;
     int len = ncols * sizeof(char *);
     int i;
@@ -267,6 +267,7 @@ int mb_insert_tuple(int ncols, char *vals[], Table *tb) {
     unsigned char *t, *s;
     union Tuple *p;
     struct timeval tv;
+    tstamp_t ts;
 
     for (i = 0; i < ncols; i++)
         len += strlen(vals[i]) + 1;
@@ -304,7 +305,8 @@ int mb_insert_tuple(int ncols, char *vals[], Table *tb) {
     n->real_len = (unsigned short)len;
     n->tuple = t;
     (void) gettimeofday(&tv, NULL);		/* timestamp the tuple */
-    n->tstamp = timeval_to_timestamp(&tv);
+    ts = timeval_to_timestamp(&tv);
+    n->tstamp = ts;
     p = (union Tuple *)t;
     t += ncols * sizeof(char *);
     for (i = 0; i < ncols; i++) {
@@ -326,13 +328,14 @@ int mb_insert_tuple(int ncols, char *vals[], Table *tb) {
     (void) pthread_mutex_unlock(&(tb->tb_mutex));
     (void) pthread_mutex_unlock(&mutex);
 
-    return 1;
+    return ts;
 }
 
-int heap_insert_tuple(int ncols, char *vals[], Table *tb, Node *node) {
+tstamp_t heap_insert_tuple(int ncols, char *vals[], Table *tb, Node *node) {
 
     Node *n;
     struct timeval tv;
+    tstamp_t ts;
 
     int i;
 
@@ -348,14 +351,14 @@ int heap_insert_tuple(int ncols, char *vals[], Table *tb, Node *node) {
     buf = malloc(alloc_len);
     if (!buf) {
         printf("Out of memory\n");
-        return 0;
+        return (tstamp_t)0;
     };
     if (! (n = node)) {
         n = malloc(sizeof(Node));
         if (!n) {
             printf("Out of memory\n");
             free(buf);
-            return 0;
+            return (tstamp_t)0;
         }
     }
 
@@ -398,7 +401,8 @@ int heap_insert_tuple(int ncols, char *vals[], Table *tb, Node *node) {
     n->real_len = (unsigned short) len;
     n->tuple = buf;
     (void) gettimeofday(&tv, NULL); /* timestamp the tuple */
-    n->tstamp = timeval_to_timestamp(&tv);
+    ts = timeval_to_timestamp(&tv);
+    n->tstamp = ts;
     if ((tb->count)++) { /* list was not empty */
         tb->newest->next = n;
         n->prev = tb->newest;
@@ -409,7 +413,7 @@ int heap_insert_tuple(int ncols, char *vals[], Table *tb, Node *node) {
     }
     (void) pthread_mutex_unlock(&(tb->tb_mutex));
     (void) pthread_mutex_unlock(&mutex);
-    return 1;
+    return ts;
 }
 
 Node *heap_alloc_node(int ncols, char *vals[], Table *tb) {

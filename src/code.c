@@ -781,7 +781,7 @@ void extract(MachineContext *mc) {
 static int simple_type(DataStackEntry *d) {
     int t = d->type;
 
-    return (t == dBOOLEAN || t == dINTEGER || t == dDOUBLE || t == dTSTAMP);
+    return (t == dNULL || t == dBOOLEAN || t == dINTEGER || t == dDOUBLE || t == dTSTAMP || t == dEVENT);
 }
 
 void assign(MachineContext *mc) {
@@ -799,10 +799,29 @@ void assign(MachineContext *mc) {
     t = d2.type;
     index = (long)d1.value.int_v;
     (void) al_get(mc->variables, index, (void **)&d);
-    if (t != d->type)
+    if ((t != d->type) && (t != dNULL)) /* allow NULL type inequality */
         execerror(mc->pc->lineno,
                   "lhs and rhs of assignment of different types",
                   varName(mc, index));
+    if (t == dEVENT) {	/* need to add/remove new/old references */
+        ev_release(d->value.ev_v);
+        ev_reference(d2.value.ev_v);
+    } else if (t == dNULL) {
+        initDSE(&d2, d->type, d->flags);
+        switch (d2.type) {
+            case dBOOLEAN:  d2.value.bool_v = 0;    break;
+            case dINTEGER:  d2.value.int_v = 0;     break;
+            case dDOUBLE:   d2.value.dbl_v = 0.0;   break;
+            case dTSTAMP:   d2.value.tstamp_v = 0;  break;
+            case dSTRING:   d2.value.str_v = NULL;  break;
+            case dMAP:      d2.value.map_v = NULL;  break;
+            case dIDENT:    d2.value.str_v = NULL;  break;
+            case dWINDOW:   d2.value.win_v = NULL;  break;
+            case dITERATOR: d2.value.iter_v = NULL; break;
+            case dSEQUENCE: d2.value.seq_v = NULL;  break;
+            case dEVENT:    d2.value.ev_v = NULL;   break;
+        }
+    }
     if (d2.flags & DUPLICATE) {
         d2.value.str_v = strdup(d2.value.str_v);
         d2.flags &= ~DUPLICATE;		/* make sure duplicate flag false */
@@ -887,6 +906,21 @@ static int compare(int lineno, DataStackEntry *d1, DataStackEntry *d2) {
         default:
             execerror(lineno, "attempting to compare structured datatypes", NULL);
             break;
+        }
+    } else if (t2 == dNULL) {   /* NULL comparison against non-NULL type */
+        switch (d1->type) {
+            case dBOOLEAN:  a = (d1->value.bool_v == 0) ? 0 : 1;    break;
+            case dINTEGER:  a = (d1->value.int_v == 0) ? 0 : 1;     break;
+            case dDOUBLE:   a = (d1->value.dbl_v == 0) ? 0 : 1;     break;
+            case dTSTAMP:   a = (d1->value.tstamp_v == 0) ? 0 : 1;  break;
+            case dSTRING:   a = (d1->value.str_v == NULL) ? 0 : 1;  break;
+            case dMAP:      a = (d1->value.map_v == NULL) ? 0 : 1;  break;
+            case dIDENT:    a = (d1->value.str_v == NULL) ? 0 : 1;  break;
+            case dWINDOW:   a = (d1->value.win_v == NULL) ? 0 : 1;  break;
+            case dITERATOR: a = (d1->value.iter_v == NULL) ? 0 : 1; break;
+            case dSEQUENCE: a = (d1->value.seq_v == NULL) ? 0 : 1;  break;
+            case dEVENT:    a = (d1->value.ev_v == NULL) ? 0 : 1;   break;
+            default: execerror(lineno, "attempting to compare unknown datatype to NULL", NULL);
         }
     } else
         execerror(lineno, "attempting to compare different data types", NULL);
@@ -1233,10 +1267,11 @@ static void insert(int lineno, DataStackEntry *table, char *id, DataStackEntry *
         d->flags = 0;
     if (hm_put((table->value.map_v)->hm, id, d, &olddatum) && olddatum) {
         DataStackEntry *dse = (DataStackEntry *)olddatum;
-        //if (dse->type != dSEQUENCE && dse->type != dWINDOW)
-        freeDSE(dse);
-        // dse_free(dse);
-
+        /* want to keep windows/sequences/maps alive */
+        if (dse->flags == MUST_FREE) {
+            freeDSE(dse);
+        }
+        dse_free(dse);	/* but can free the old dse pointing to it */
     }
 }
 
@@ -1316,7 +1351,6 @@ static GAPLSequence *lsqrfit(int lineno, GAPLWindow *w) {
             y =(double)((we->dse).value.int_v);
         else
             y = (we->dse).value.dbl_v;
-        // printf("[alex] x=%10.10f\ty=%10.10f\n", x, y);
         X += x;
         Y += y;
         X2+= x*x;
@@ -1331,7 +1365,6 @@ static GAPLSequence *lsqrfit(int lineno, GAPLWindow *w) {
         a = 0.0;
         b = 0.0;
     }
-    // printf("[alex] a=%10.10f\tb=%10.10f\n", a, b);
     dsea.type = dDOUBLE;
     dsea.flags = 0;
     dsea.value.dbl_v = a;
@@ -1395,9 +1428,6 @@ static void appendWindow(int lineno, GAPLWindow *w, DataStackEntry *d, DataStack
         we.dse.type = d->type;
         GAPLSequence *u = (GAPLSequence *) d->value.seq_v;
         we.dse.value.seq_v = genSequence(lineno, (long long) u->size, u->entries);
-        /*printf("[alex] add ");
-        printDSE(&we.dse, stdout);
-        printf("\n");*/
     } else {
         we.dse = *d;
     }
@@ -1409,7 +1439,8 @@ static void appendWindow(int lineno, GAPLWindow *w, DataStackEntry *d, DataStack
         we.dse.flags = 0;
     if (w->wtype == dSECS)
         we.tstamp = ts->value.tstamp_v;
-    (void) ll_addFirst(w->ll, we_duplicate(we));
+    /* append new entry to the end */
+    (void) ll_addLast(w->ll, we_duplicate(we));
     n = 0;
     switch(w->wtype) {
     case dROWS:
@@ -1431,12 +1462,36 @@ static void appendWindow(int lineno, GAPLWindow *w, DataStackEntry *d, DataStack
         break;
     }
     }
+    /* Window slides to right and drops old entries */
     while (n-- >0) {
         GAPLWindowEntry *entry;
         (void) ll_removeFirst(w->ll, (void **)&entry);
         freeDSE(&entry->dse);
         free(entry);
     }
+}
+
+static GAPLSequence *maximum_map(int lineno, DataStackEntry d, long long element) {
+    GAPLSequence *maxSeq = NULL;
+    char **keys;
+    int n, i;
+    signed long long x, max = 0;
+    if (d.type != dPTABLE)
+        execerror(lineno, "maximum map only accepts ptables right now", NULL);
+    n = ptab_keys(d.value.str_v, &keys);
+    if (iflog)
+        fprintf(stderr, "maximum map entered.\n");
+    for (i = 0; i < n; i++) {
+        GAPLSequence *s = ptab_lookup(d.value.str_v, keys[i]);
+        x = s->entries[element].value.int_v;
+        if (max < x) {
+            max = x;
+            free(maxSeq);
+            maxSeq = s;
+        } else
+            free(s);
+    }
+    return maxSeq;
 }
 
 static double maximum(int lineno, GAPLWindow *w) {
@@ -1911,7 +1966,7 @@ done:
         sqli.colval = colval;
         sqli.coltype = coltype;
         sqli.ncols = n;
-        ans = hwdb_insert(&sqli, NULL);
+        ans = hwdb_insert(&sqli);
     }
     for (i = 0; i < n; i++)
         free(colval[i]);
@@ -1977,7 +2032,6 @@ void procedure(MachineContext *mc) {
         /* args[0] is map, args[1] is ident */
         if (args[0].type == dMAP && args[1].type == dIDENT) {
             doremove(args+0, args[1].value.str_v);
-        /* args[0] is ptable, args[1] is ident */
         } else if (args[0].type == dPTABLE && args[1].type == dIDENT) {
             ptab_delete(args[0].value.str_v, args[1].value.str_v);
         } else {
@@ -2521,6 +2575,21 @@ void function(MachineContext *mc) {
             execerror(mc->pc->lineno, "incorrectly typed arguments to winElement()", NULL);
         d = winElement(mc->pc->lineno, args[0].value.win_v, args[1].value.int_v);
         d.flags = 0;
+        break;
+    }
+    case 35: {
+        if (args[0].type != dPTABLE)
+            execerror(mc->pc->lineno, "attempt to compute max of a non-ptable", NULL);
+        d.flags = 0;
+        d.type = dSEQUENCE;
+        d.flags = MUST_FREE;
+        d.value.seq_v = maximum_map(mc->pc->lineno, args[0], args[1].value.int_v);
+        break;
+    }
+    case 36: {		/* event currentEvent() */
+        d.type = dEVENT;
+        d.flags = 0;
+        d.value.ev_v = mc->currentEvent;
         break;
     }
     default: {		/* unknown function - should not get here */
