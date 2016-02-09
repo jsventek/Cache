@@ -1,0 +1,5 @@
+subscribe t to Timer;
+subscribe u to a;
+behavior {
+    send(currentTopic(), currentEvent());
+}

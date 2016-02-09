@@ -1,0 +1,18 @@
+subscribe e1 to Timer;
+event<Timer> x, y;
+behavior{
+  if (currentTopic() == 'Timer'){
+    if (x == NULL) {
+      print();
+      x = e1;
+      print(String('Got initial x event:', x.tstamp));
+    }
+    else y = e1;
+  }
+  if (y){
+    print(String(x.tstamp, y.tstamp));
+    x = y;
+    y = NULL;
+    print('Moving y into x');
+  }
+}

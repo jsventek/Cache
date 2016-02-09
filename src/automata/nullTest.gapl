@@ -1,0 +1,20 @@
+subscribe t to Timer;
+int i;
+int n;
+string s;
+initialization {
+   i = NULL;
+   s = NULL;
+   n = 0;
+}
+behavior {
+   n += 1;
+   if (n % 2 == 1) {
+      i = 1;
+      s = 'abc';
+   } else {
+      i = NULL;
+      s = NULL;
+   }
+   print(String(n, ', ', i, ', ', s));
+}

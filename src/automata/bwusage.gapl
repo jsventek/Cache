@@ -1,0 +1,43 @@
+subscribe t to Timer;
+subscribe f to Flows;
+associate a with Allowances;
+associate b with BWUsage;
+int n, limit;
+int dim, prev_dim;
+identifier ip;
+iterator it;
+sequence s;
+string st;
+initialization {
+  prev_dim = 0;
+}
+behavior {
+  if (currentTopic() == 'Timer') {
+    dim = dayInMonth(t.tstamp);
+    if (dim < prev_dim) {
+      it = Iterator(b);
+      while (hasNext(it)) {
+        ip = next(it);
+        s = Sequence(seqElement(lookup(b, ip), 0), 0);
+        insert(b, ip, s);
+      }
+      destroy(it);
+    }
+    prev_dim = dim;
+  } else {
+    st = f.daddr;
+    ip = Identifier(st);
+    if (hasEntry(a, ip)) {
+      limit = seqElement(lookup(a, ip), 1);
+      if (hasEntry(b, ip))
+        n = seqElement(lookup(b, ip), 1);
+      else
+        n = 0;
+      n = n + f.nbytes;
+      s = Sequence(st, n);
+      if (n > limit)
+        send(s, limit, 'limit exceeded');
+      insert(b, ip, s);
+    }
+  }
+}

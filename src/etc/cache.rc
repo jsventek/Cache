@@ -1,0 +1,1 @@
+create table a (i integer, r real)

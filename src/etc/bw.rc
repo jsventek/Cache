@@ -1,0 +1,3 @@
+create table Flows (proto integer, saddr varchar(16), sport integer, daddr varchar(16), dport integer, npkts integer, nbytes integer)
+create persistenttable Allowances (ipaddr varchar(16) primary key, bytes integer)
+create persistenttable BWUsage (ipaddr varchar(16) primary key, bytes integer)
