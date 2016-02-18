@@ -1,4 +1,35 @@
 /*
+ * Copyright (c) 2016, University of Oregon
+ * All rights reserved.
+
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+
+ * - Redistributions of source code must retain the above copyright notice,
+ *   this list of conditions and the following disclaimer.
+ *
+ * - Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ *
+ * - Neither the name of the University of Glasgow nor the names of its
+ *   contributors may be used to endorse or promote products derived from this
+ *   software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+ * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+ * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+ * POSSIBILITY OF SUCH DAMAGE.
+ */
+
+/*
  * Cache Forwarding Agent
  *
  * receives forwarded tuples and join commands from other forwarders
@@ -32,6 +63,7 @@
 #define LOG_MESSAGES 3
 #define LOG_ALL 4
 #define ILLEGAL_QUERY_RESPONSE "1<|>Illegal query<|>0<|>0<|>\n"
+#define JOIN_QUERY_RESPONSE "0<|>Join query received<|>0<|>0<|>\n"
 #define ACCEPTED_FORWARD_RESPONSE "0<|>Tuple accepted<|>0<|>0<|>\n"
 
 #define log_it(level, ...) {if (log_level >= level) {fprintf(stderr, "%d ", level); fprintf(stderr, __VA_ARGS__);}}
@@ -70,6 +102,7 @@ static char id[25];			/* ident of automaton */
 static TSTable timestamps;		/* table of inserted timestamps */
 static TSHashMap *forw_table = NULL;	/* forwarding table */
 static char my_host[256];		/* fully qualified hostname */
+static char my_ip[16];			/* IP address */
 
 static char buf[SOCK_RECV_BUF_LEN];
 static char resp[SOCK_RECV_BUF_LEN];
@@ -210,11 +243,10 @@ static void *handler(void *args) {
             if (strcmp(my_host, hmentry_key(he)) != 0) {
                 log_it(LOG_FORWARD, "%s -> %s\n", hmentry_key(he), insert);
             } else {
-                log_it(LOG_FORWARD, "%s -> %s\n", hmentry_key(he), insert);
+                log_it(LOG_FORWARD, "%s is my_host\n", hmentry_key(he));
             }
         }
         tsit_destroy(it);
-        pthread_mutex_unlock(&(timestamps.lock));
     }
     return (args) ? NULL : args;	/* unused warning subterfuge */
 }
@@ -222,8 +254,6 @@ static void *handler(void *args) {
 static LinkedList *read_forwarders(char *file, int log) {
     FILE *fd;
     LinkedList *ll;
-    Forwarder *f;
-    char *p;
     char buf[100];
 
     if ((fd = fopen(file, "r")) == NULL) {
@@ -239,16 +269,11 @@ static LinkedList *read_forwarders(char *file, int log) {
         int len = strlen(buf) - 1;
         buf[len] = '\0';	/* replace \n by \0 */
         log_it(LOG_OVERLAY, "read_forwarders: %s\n", buf);
-        p = strchr(buf, ':');
-        if (p == NULL) {
+        if (strchr(buf, ':') == NULL) {
             fprintf(stderr, "Incorrectly formatted entry: %s\nMust be host:port\n", buf);
             continue;
         }
-        *p++ = '\0';
-        f = (Forwarder *)malloc(sizeof(Forwarder));
-        f->hostname = strdup(buf);
-        f->port = atoi(p);
-        ll_addLast(ll, (void *)f);
+        ll_addLast(ll, (void *)strdup(buf));
     }
     fclose(fd);
     return ll;
@@ -262,7 +287,6 @@ static LinkedList *read_forwarders(char *file, int log) {
 static LinkedList *read_tables(char *file, int log) {
     FILE *fd;
     LinkedList *ll;
-    char *t;
     char buf[100];
 
     if ((fd = fopen(file, "r")) == NULL) {
@@ -278,8 +302,7 @@ static LinkedList *read_tables(char *file, int log) {
         int len = strlen(buf) - 1;
         buf[len] = '\0';	/* replace \n by \0 */
         log_it(LOG_OVERLAY, "read_tables: %s\n", buf);
-        t = strdup(buf);
-        ll_addLast(ll, (void *)t);
+        ll_addLast(ll, (void *)strdup(buf));
     }
     fclose(fd);
     return ll;
@@ -308,8 +331,7 @@ static void dump_forw_table(int level) {
         FTEntry *fte;
         (void) tsit_next(iter, (void **)&he);
         key = hmentry_key(he);
-        fte = (FTEntry *)hmentry_value(he);
-        log_it(level, "%s:%05u\n", key, (unsigned short)fte->port);
+        log_it(level, "%s\n", hmentry_key(he));
     }
     tsit_destroy(iter);
 }
@@ -361,16 +383,34 @@ static void process_args(int argc, char *argv[]) {
     }
 }
 
+static int forw_connect(char *str, RpcConnection *rpc) {
+    char host[256], *p;
+    unsigned short int port;
+    int n;
+
+    p = strchr(str, ':');	/* locate the colon */
+    n = p - str;		/* length of hostname/IP address */
+    strncpy(host, str, n);
+    host[n] = '\0';
+    port = (unsigned short int)atoi(++p);
+    log_it(LOG_ALL, "Attempting to connect to %s\n", str);
+    if ((*rpc = rpc_connect(host, port, "ForwarderToCache", 1l)) == NULL) {
+        log_it(LOG_OVERLAY, "Unable to connect to %s\n", str);
+        return 0;
+    } else {
+        log_it(LOG_OVERLAY, "Connected to %s\n", str);
+        return 1;
+    }
+}
+
 int main(int argc, char *argv[]) {
     unsigned short my_port;
-    char my_ip[16];
     char automaton[10000];
     unsigned rlen;
     Q_Decl(query, 10000);
     int i, j;
     LinkedList *target, *tables;
     pthread_t thr;
-    FTEntry *fte;
     void *dummy;
     int status;
     char *p, *t;
@@ -404,8 +444,8 @@ int main(int argc, char *argv[]) {
         exit(-1);
     }
     rpc_details(my_ip, &my_port);
-    rpc_reverselu(my_ip, my_host);
-    log_it(LOG_NONE, "forwarding service at %s:%05u\n", my_host, my_port);
+    sprintf(my_host, "%s:%u", my_ip, my_port);
+    log_it(LOG_NONE, "forwarding service at %s\n", my_host);
     /*
      * start forwarding thread
      */
@@ -418,7 +458,7 @@ int main(int argc, char *argv[]) {
      */
     rpc = rpc_connect("localhost", c_port, "HWDB", 1l);
     if (rpc == NULL) {
-        fprintf(stderr, "Error connecting to Cache at localhost:%05u\n", c_port);
+        fprintf(stderr, "Error connecting to Cache at localhost:%u\n", c_port);
     exit(-1);
     }
 
@@ -428,10 +468,24 @@ int main(int argc, char *argv[]) {
     timestamps.table = hm_create(100, 0.5);	/* hashmap to hold timestamps */
     pthread_mutex_init(&(timestamps.lock), NULL);
     forw_table = tshm_create(20, 0.5);	/* thread-safe hashmap for forw table */
-    fte = (FTEntry *)malloc(sizeof(FTEntry));
-    fte->port = (int)my_port;
-    fte->rpc = NULL;
-    tshm_put(forw_table, my_host, (void *)fte, &dummy);
+    tshm_put(forw_table, my_host, (void *)rpc, &dummy);
+    while (ll_removeFirst(target, (void **)&t)) {
+        RpcConnection connection;
+        if (strcmp(t, my_host) == 0)
+            continue;
+        if (tshm_containsKey(forw_table, t))	/* already there */
+            continue;
+        if (forw_connect(t, &connection)) {
+            tshm_put(forw_table, t, (void *)connection, &dummy);
+            sprintf(query, "JOIN:%s", my_host);
+            if (! rpc_call(connection, Q_Arg(query), strlen(query)+1, automaton, sizeof(automaton), &rlen)) {
+                log_it(LOG_OVERLAY, "Error sending join command to %s\n", t);
+            } else {
+                /* now process the result in event */
+            }
+        }
+    }
+    ll_destroy(target, free);
     dump_forw_table(log_level);
 
     /*
@@ -441,8 +495,8 @@ int main(int argc, char *argv[]) {
     p = automaton;
     for (i = 1; ll_removeFirst(tables, (void **)&t); i++) {
         p += sprintf(p, "subscribe t%d to %s;\r", i, t);
-        free(t);
     }
+    ll_destroy(tables, free);
     sprintf(p, "behavior {\r    send(currentTopic(), currentEvent());\r}\r");
     /* build query */
     sprintf(query, "SQL:register \"%s\" %s %hu ForwarderToOthers",
@@ -537,6 +591,7 @@ int main(int argc, char *argv[]) {
                 log_it(LOG_FORWARD, "Insert tuple(%s) into timestamp table\n", timestamp);
             }
             pthread_mutex_unlock(&(timestamps.lock));
+            continue;
         } else if (strcmp(buf, "JOIN") == 0) {
             char *q;
             q = ++p; /* move past the colon position */
@@ -544,6 +599,11 @@ int main(int argc, char *argv[]) {
             if (p)
                 *p++ = '\0';
             /* process join request */
+            log_it(LOG_OVERLAY, "Join query: %s\n", q);
+            tshm_put(forw_table, q, NULL, &dummy);
+            dump_forw_table(log_level);
+            strcpy(resp, JOIN_QUERY_RESPONSE);
+            len = strlen(resp) + 1;
         } else {
             fprintf(stderr, "Illegal query: %s:%s\n", buf, p);
             strcpy(resp, ILLEGAL_QUERY_RESPONSE);
