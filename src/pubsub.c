@@ -33,7 +33,7 @@
  * tables for mapping from id to subscriptions and vice versa
  */
 #include "pubsub.h"
-#include "hashmap.h"
+#include "adts/hashmap.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
