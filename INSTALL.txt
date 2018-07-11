@@ -6,9 +6,22 @@ autoreconf -if
 If autoreconf complains about libtool problems... run libtoolize first
 libtoolize
 
+You will need to compile and install ADTs (simple abstract data types)
+and srpc (simple RPC service).  These can be found in
+   https://github.com/jsventek/ADTs
+   https://github.com/jsventek/SRPC
+respectively.  Install these (make; make install) BEFORE the
+configuration step below, 
+so that the generated Makefile will include references to the
+libraries in the CC command line (-lADTs -lsrpc).  If you get an error
+message from the linker about not finding functions in the ADTs
+package, it is likely because these libraries were not present when
+Cache was configured. 
+
 After generating the configure script,
 ./configure --help
 will list configuration options.
+
 
 After successfully completing an execution of the configure script, Makefiles will be generated in the correct directories and make can be used to build and install the software.
 make clean
