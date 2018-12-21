@@ -1,7 +1,6 @@
 #ifndef _EXTREG_H_
 #define _EXTREG_H_
 /*
- * Copyright (c) 2013, Court of the University of Glasgow
  * Copyright (c) 2018, University of Oregon
  * All rights reserved.
 
@@ -31,15 +30,12 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  */
-
+#include <stdint.h>
 /*
- * constant register definitions, and set and get functions called by code()
+ * set and get functions called by code()
  */
 
-#define DUMMY_REG1 1
-#define DUMMY_REG2 2
-
-unsigned long long ext_reg_get(int reg_val);
-unsigned long long ext_reg_set(int reg_val, unsigned long long value);
+uint64_t ext_reg_get(int reg_val);
+uint64_t ext_reg_set(int reg_val, uint64_t value);
 
 #endif /* _EXTREG_H_ */
