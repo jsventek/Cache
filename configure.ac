@@ -16,8 +16,8 @@ AC_CANONICAL_HOST
 
 # Check for pthreads
 AX_PTHREAD([have_pthreads="yes"],[have_pthreads="no"])
-LIBS="$PTHREAD_LIBS $LIBS"
-CFLAGS="$CFLAGS $PTHREAD_CFLAGS"
+LIBS="$PTHREAD_LIBS -L/usr/local/lib $LIBS"
+CFLAGS="$CFLAGS $PTHREAD_CFLAGS -I/usr/local/include"
 CC="$PTHREAD_CC"
 
 # Check for the math library
