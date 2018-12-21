@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2013, Court of the University of Glasgow
+ * Copyright (c) 2018, University of Oregon
  * All rights reserved.
 
  * Redistribution and use in source and binary forms, with or without
@@ -56,6 +57,7 @@ extern ArrayList *variables;
 extern ArrayList *index2vars;
 extern HashMap *topics;
 extern HashMap *builtins;
+extern HashMap *devconstants;
 extern char *progname;
 /* declared in code.c */
 extern InstructionEntry *progp, *startp, *initialization, *behavior;
