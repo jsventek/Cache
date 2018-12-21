@@ -1,6 +1,7 @@
 %{
 /*
  * Copyright (c) 2013, Court of the University of Glasgow
+ * Copyright (c) 2018, University of Oregon
  * All rights reserved.
 
  * Redistribution and use in source and binary forms, with or without
@@ -41,6 +42,7 @@
 #include "topic.h"
 #include "a_globals.h"
 #include "dsemem.h"
+#include "extreg.h"
 #include "ptable.h"
 #include <stdio.h>
 #include <string.h>
@@ -73,6 +75,7 @@ static int gargc;		/* global argument count */
 HashMap *vars2index = NULL;
 HashMap *topics = NULL;
 HashMap *builtins = NULL;
+HashMap *devconstants = NULL;
 ArrayList *variables;
 ArrayList *index2vars;
 char *progname;
@@ -630,7 +633,9 @@ static struct fpstruct functions[] = {
     {"mapSize", 1, 1, 33},           /* int mapSize(map) */
     {"winElement", 2, 2, 34},        /* win.type winElement(win, int) */
     {"mapMax", 2, 2, 35},            /* ident mapMax(map) */
-    {"currentEvent", 0, 0, 36}       /* event currentEvent() */
+    {"currentEvent", 0, 0, 36},      /* event currentEvent() */
+    {"get", 1, 1, 37},               /* int get(dev_reg) */
+    {"set", 2, 2, 38}                /* int set(dev_reg, int) */
 };
 #define NFUNCTIONS (sizeof(functions)/sizeof(struct fpstruct))
 
@@ -651,6 +656,12 @@ struct keyval {
     char *key;
     int value;
 };
+
+static struct keyval constants[] = {
+    {"DEV_reg0", 0x00},
+    {"DEV_reg1", 0x01}
+};
+#define NCONSTANTS (sizeof(constants)/sizeof(struct keyval))
 
 static struct keyval keywords[] = {
     {"subscribe", SUBSCRIBE},
@@ -787,6 +798,12 @@ top:
             if (strcmp(sbuf, procedures[i].name) == 0) {
                 a_lval.strv = strdup(sbuf);
                 return (PROCEDURE);
+            }
+        }
+        for (i = 0; i < NCONSTANTS; i++) {
+            if (strcmp(sbuf, constants[i].key) == 0) {
+                a_lval.intv = constants[i].value;
+                return (INTEGER);
             }
         }
         if (strcmp(sbuf, "true") == 0) {
@@ -939,6 +956,13 @@ void a_init(void) {
                 d->index = procedures[i].index;
                 (void)hm_put(builtins, procedures[i].name, d, &dummy);
             }
+        }
+    }
+    if (devconstants == NULL) {
+        devconstants = hm_create(25L, 5.0);
+        for (i = 0; i < NCONSTANTS; i++) {
+            void *dummy;
+            (void)hm_put(devconstants, constants[i].key, (void *)constants[i].value, &dummy);
         }
     }
 }
