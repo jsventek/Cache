@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2012, Court of the University of Glasgow
+ * Copyright (c) 2018, University of Oregon
  * All rights reserved.
 
  * Redistribution and use in source and binary forms, with or without
@@ -45,6 +46,7 @@
 #include "typetable.h"
 #include "sqlstmts.h"
 #include "hwdb.h"
+#include "extreg.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <setjmp.h>
@@ -2590,6 +2592,22 @@ void function(MachineContext *mc) {
         d.type = dEVENT;
         d.flags = 0;
         d.value.ev_v = mc->currentEvent;
+        break;
+    }
+    case 37: {          /* int get(dev_reg) */
+        if (args[0].type != dINTEGER)
+            execerror(mc->pc->lineno, "incorrectly typed argument to get()", NULL);
+        d.type = dINTEGER;
+        d.flags = 0;
+        d.value.int_v = ext_reg_get(args[0].value.int_v);
+        break;
+    }
+    case 38: {          /* int set(dev_reg, int) */
+        if (args[0].type != dINTEGER || args[1].type != dINTEGER)
+            execerror(mc->pc->lineno, "incorrectly typed argument to set()", NULL);
+        d.type = dINTEGER;
+        d.flags = 0;
+        d.value.int_v = ext_reg_set(args[0].value.int_v, args[1].value.int_v);
         break;
     }
     default: {		/* unknown function - should not get here */
