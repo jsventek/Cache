@@ -10,7 +10,7 @@ libcache_la_SOURCES = cacheconnect.c
 # cache programs
 bin_PROGRAMS = cache cacheclient registercallback lftocr testclient forwarder
 
-cache_SOURCES = cache.c hwdb.c rtab.c timestamp.c mb.c indextable.c topic.c automaton.c parser.c sqlstmts.c table.c typetable.c ptable.c nodecrawler.c event.c stack.c dsemem.c agram.c code.c gram.c scan.c gram.h agram.h scan.h parser.h
+cache_SOURCES = cache.c hwdb.c rtab.c timestamp.c mb.c indextable.c topic.c automaton.c parser.c sqlstmts.c table.c typetable.c ptable.c nodecrawler.c event.c stack.c dsemem.c agram.c code.c extreg.c gram.c scan.c gram.h agram.h scan.h parser.h
 
 cacheclient_SOURCES = cacheclient.c rtab.c typetable.c sqlstmts.c timestamp.c
 
